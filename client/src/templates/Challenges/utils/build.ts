@@ -1,56 +1,41 @@
-import frameRunnerData from '../../../../../config/client/frame-runner.json';
-import testEvaluatorData from '../../../../../config/client/test-evaluator.json';
-import { challengeTypes } from '../../../../utils/challenge-types';
-import {
-  ChallengeFile as PropTypesChallengeFile,
-  ChallengeMeta
-} from '../../../redux/prop-types';
+import { challengeTypes } from '../../../../../shared-dist/config/challenge-types';
+
+import type { ChallengeFile } from '../../../redux/prop-types';
 import { concatHtml } from '../rechallenge/builders';
-import { getTransformers, embedFilesInHtml } from '../rechallenge/transformers';
 import {
-  createTestFramer,
-  runTestInTestFrame,
+  getTransformers,
+  embedFilesInHtml,
+  getPythonTransformers,
+  getMultifileJSXTransformers
+} from '../rechallenge/transformers';
+import {
+  runTestsInTestFrame,
   createMainPreviewFramer,
   createProjectPreviewFramer,
   ProxyLogger,
-  TestRunnerConfig,
   Context,
-  Source
+  Source,
+  prepTestRunner
 } from './frame';
-import createWorker from './worker-executor';
-
-interface ChallengeFile extends PropTypesChallengeFile {
-  source: string;
-  index: string;
-  editableContents: string;
-}
-
-type ChallengeFiles = ChallengeFile[];
 
 interface BuildChallengeData extends Context {
   challengeType: number;
-  challengeFiles: ChallengeFiles;
-  required: { src: string }[];
+  challengeFiles?: ChallengeFile[];
+  required: { src?: string }[];
   template: string;
   url: string;
 }
 
 interface BuildOptions {
   preview: boolean;
-  protect: boolean;
-  usesTestRunner: boolean;
+  disableLoopProtectTests: boolean;
+  disableLoopProtectPreview: boolean;
+  usesTestRunner?: boolean;
 }
 
-const { filename: runner } = frameRunnerData;
-const { filename: testEvaluator } = testEvaluatorData;
-
-const frameRunner = [
-  {
-    src: `/js/${runner}.js`
-  }
-];
-
-type ApplyFunctionProps = (file: ChallengeFile) => Promise<ChallengeFile>;
+type ApplyFunctionProps = (
+  file: ChallengeFile
+) => Promise<ChallengeFile> | ChallengeFile;
 
 const applyFunction =
   (fn: ApplyFunctionProps) => async (file: ChallengeFile) => {
@@ -71,32 +56,24 @@ const applyFunction =
 const composeFunctions = (...fns: ApplyFunctionProps[]) =>
   fns.map(applyFunction).reduce((f, g) => x => f(x).then(g));
 
-function buildSourceMap(challengeFiles: ChallengeFiles): Source | undefined {
+function buildSourceMap(challengeFiles: ChallengeFile[]): Source | undefined {
   // TODO: rename sources.index to sources.contents.
   const source: Source | undefined = challengeFiles?.reduce(
     (sources, challengeFile) => {
       sources.index += challengeFile.source || '';
       sources.contents = sources.index;
-      sources.original[challengeFile.history[0]] = challengeFile.source;
       sources.editableContents += challengeFile.editableContents || '';
       return sources;
     },
-    { index: '', editableContents: '', original: {} } as Source
+    {
+      index: '',
+      editableContents: ''
+    } as Source
   );
   return source;
 }
 
-function checkFilesErrors(challengeFiles: ChallengeFiles): ChallengeFiles {
-  const errors = challengeFiles
-    .filter(({ error }) => error)
-    .map(({ error }) => error);
-  if (errors.length) {
-    throw errors;
-  }
-  return challengeFiles;
-}
-
-const buildFunctions = {
+export const buildFunctions = {
   [challengeTypes.js]: buildJSChallenge,
   [challengeTypes.jsProject]: buildJSChallenge,
   [challengeTypes.html]: buildDOMChallenge,
@@ -105,7 +82,14 @@ const buildFunctions = {
   [challengeTypes.backEndProject]: buildBackendChallenge,
   [challengeTypes.pythonProject]: buildBackendChallenge,
   [challengeTypes.multifileCertProject]: buildDOMChallenge,
-  [challengeTypes.colab]: buildBackendChallenge
+  [challengeTypes.colab]: buildBackendChallenge,
+  [challengeTypes.python]: buildPythonChallenge,
+  [challengeTypes.multifilePythonCertProject]: buildPythonChallenge,
+  [challengeTypes.lab]: buildDOMChallenge,
+  [challengeTypes.jsLab]: buildJSChallenge,
+  [challengeTypes.pyLab]: buildPythonChallenge,
+  [challengeTypes.dailyChallengeJs]: buildJSChallenge,
+  [challengeTypes.dailyChallengePy]: buildPythonChallenge
 };
 
 export function canBuildChallenge(challengeData: BuildChallengeData): boolean {
@@ -113,8 +97,6 @@ export function canBuildChallenge(challengeData: BuildChallengeData): boolean {
   return Object.prototype.hasOwnProperty.call(buildFunctions, challengeType);
 }
 
-// TODO: Figure out and (hopefully) simplify the return type.
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export async function buildChallenge(
   challengeData: BuildChallengeData,
   options: BuildOptions
@@ -127,145 +109,181 @@ export async function buildChallenge(
   throw new Error(`Cannot build challenge of type ${challengeType}`);
 }
 
-const testRunners = {
-  [challengeTypes.js]: getJSTestRunner,
-  [challengeTypes.html]: getDOMTestRunner,
-  [challengeTypes.backend]: getDOMTestRunner,
-  [challengeTypes.pythonProject]: getDOMTestRunner,
-  [challengeTypes.multifileCertProject]: getDOMTestRunner
+export const runnerTypes: Record<
+  (typeof challengeTypes)[keyof typeof challengeTypes],
+  'javascript' | 'dom' | 'python'
+> = {
+  [challengeTypes.html]: 'dom',
+  [challengeTypes.js]: 'javascript',
+  [challengeTypes.backend]: 'dom',
+  [challengeTypes.zipline]: 'dom',
+  [challengeTypes.frontEndProject]: 'dom',
+  [challengeTypes.backEndProject]: 'dom',
+  [challengeTypes.pythonProject]: 'python',
+  [challengeTypes.jsProject]: 'javascript',
+  [challengeTypes.modern]: 'dom',
+  [challengeTypes.step]: 'dom',
+  [challengeTypes.quiz]: 'dom',
+  [challengeTypes.invalid]: 'dom',
+  [challengeTypes.video]: 'dom',
+  [challengeTypes.codeAllyPractice]: 'dom',
+  [challengeTypes.codeAllyCert]: 'dom',
+  [challengeTypes.multifileCertProject]: 'dom',
+  [challengeTypes.theOdinProject]: 'dom',
+  [challengeTypes.colab]: 'dom',
+  [challengeTypes.exam]: 'dom',
+  [challengeTypes.msTrophy]: 'dom',
+  [challengeTypes.multipleChoice]: 'dom',
+  [challengeTypes.python]: 'python',
+  [challengeTypes.dialogue]: 'dom',
+  [challengeTypes.fillInTheBlank]: 'dom',
+  [challengeTypes.multifilePythonCertProject]: 'python',
+  [challengeTypes.generic]: 'dom',
+  [challengeTypes.lab]: 'dom',
+  [challengeTypes.jsLab]: 'javascript',
+  [challengeTypes.pyLab]: 'python',
+  [challengeTypes.dailyChallengeJs]: 'javascript',
+  [challengeTypes.dailyChallengePy]: 'python',
+  [challengeTypes.review]: 'dom'
 };
-// TODO: Figure out and (hopefully) simplify the return type.
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function getTestRunner(
-  buildData: BuildChallengeData,
-  runnerConfig: TestRunnerConfig,
-  document: Document
-) {
+
+export async function getTestRunner(buildData: BuildChallengeData) {
   const { challengeType } = buildData;
-  const testRunner = testRunners[challengeType];
-  if (testRunner) {
-    return testRunner(buildData, runnerConfig, document);
+  // TODO: Fully type BuildChallengeData
+  const type =
+    runnerTypes[challengeType as unknown as keyof typeof runnerTypes];
+  if (!type) {
+    throw new Error(
+      `Cannot get test runner for challenge type ${challengeType}`
+    );
   }
-  throw new Error(`Cannot get test runner for challenge type ${challengeType}`);
-}
+  await prepTestRunner({ ...buildData, type });
 
-function getJSTestRunner(
-  { build, sources }: BuildChallengeData,
-  { proxyLogger, removeComments }: TestRunnerConfig
-) {
-  const code = {
-    contents: sources.index,
-    editableContents: sources.editableContents
-  };
-
-  const testWorker = createWorker(testEvaluator, { terminateWorker: true });
-
-  type CreateWorker = ReturnType<typeof createWorker>;
-
-  interface TestWorker extends CreateWorker {
-    on: (event: string, listener: (...args: string[]) => void) => void;
-    done: () => void;
-  }
-
-  return (testString: string, testTimeout: number, firstTest = true) => {
-    const result = testWorker.execute(
-      { build, testString, code, sources, firstTest, removeComments },
-      testTimeout
-    ) as TestWorker;
-
-    result.on('LOG', proxyLogger);
-    return result.done;
-  };
-}
-
-async function getDOMTestRunner(
-  buildData: BuildChallengeData,
-  { proxyLogger }: TestRunnerConfig,
-  document: Document
-) {
-  await new Promise<void>(resolve =>
-    createTestFramer(document, proxyLogger, resolve)(buildData)
-  );
-  return (testString: string, testTimeout: number) =>
-    runTestInTestFrame(document, testString, testTimeout);
+  return (testStrings: string[], testTimeout: number) =>
+    runTestsInTestFrame(testStrings, testTimeout, type);
 }
 
 type BuildResult = {
   challengeType: number;
-  build: string;
+  build?: string;
   sources: Source | undefined;
+  loadEnzyme?: boolean;
+  error?: unknown;
 };
 
-export function buildDOMChallenge(
-  { challengeFiles, required = [], template = '' }: BuildChallengeData,
-  { usesTestRunner } = { usesTestRunner: false }
-): Promise<BuildResult> | undefined {
-  const finalRequires = [...required];
-  if (usesTestRunner) finalRequires.push(...frameRunner);
+// TODO: All the buildXChallenge files have a similar structure, so make that
+// abstraction (function, class, whatever) and then create the various functions
+// out of it.
+export async function buildDOMChallenge(
+  {
+    challengeFiles,
+    required = [],
+    template = '',
+    challengeType
+  }: BuildChallengeData,
+  options?: BuildOptions
+): Promise<BuildResult> {
+  // TODO: make this required in the schema.
+  if (!challengeFiles) throw Error('No challenge files provided');
+  const hasJsx = challengeFiles.some(
+    challengeFile => challengeFile.ext === 'jsx' || challengeFile.ext === 'tsx'
+  );
+  const isMultifile = challengeFiles.length > 1;
 
-  const loadEnzyme = challengeFiles?.some(
-    challengeFile => challengeFile.ext === 'jsx'
+  const requiresReact16 = required.some(({ src }) =>
+    src?.includes('https://cdnjs.cloudflare.com/ajax/libs/react/16.')
   );
 
-  const pipeLine = composeFunctions(...getTransformers());
-  const finalFiles = challengeFiles?.map(pipeLine);
+  // I'm reasonably sure this is fine, but we need to migrate transformers to
+  // TypeScript to be sure.
+  const transformers: ApplyFunctionProps[] = (isMultifile && hasJsx
+    ? getMultifileJSXTransformers(options)
+    : getTransformers(options)) as unknown as ApplyFunctionProps[];
 
-  if (finalFiles) {
-    return Promise.all(finalFiles)
-      .then(checkFilesErrors)
-      .then(embedFilesInHtml)
-      .then(([_challengeFiles, _contents]) => {
-        const challengeFiles = _challengeFiles as ChallengeFiles;
-        const contents = _contents as string;
+  const pipeLine = composeFunctions(...transformers);
+  const finalFiles = await Promise.all(challengeFiles.map(pipeLine));
+  const error = finalFiles.find(({ error }) => error)?.error;
+  const contents = (await embedFilesInHtml(finalFiles)) as string;
 
-        return {
-          challengeType:
-            challengeTypes.html || challengeTypes.multifileCertProject,
-          build: concatHtml({
-            required: finalRequires,
-            template,
-            contents
-          }),
-          sources: buildSourceMap(challengeFiles),
-          loadEnzyme
-        };
-      });
-  }
-}
+  // if there is an error, we just build the test runner so that it can be
+  // used to run tests against the code without actually running the code.
+  const toBuild = error
+    ? {}
+    : {
+        required,
+        template,
+        contents
+      };
 
-export function buildJSChallenge(
-  { challengeFiles }: { challengeFiles: ChallengeFiles },
-  options: BuildOptions
-): Promise<BuildResult> | undefined {
-  const pipeLine = composeFunctions(...getTransformers(options));
-
-  const finalFiles = challengeFiles?.map(pipeLine);
-  if (finalFiles) {
-    return Promise.all(finalFiles)
-      .then(checkFilesErrors)
-      .then(challengeFiles => ({
-        challengeType: challengeTypes.js,
-        build: challengeFiles
-          .reduce(
-            (body, challengeFile) => [
-              ...body,
-              challengeFile.head,
-              challengeFile.contents,
-              challengeFile.tail
-            ],
-            [] as string[]
-          )
-          .join('\n'),
-        sources: buildSourceMap(challengeFiles)
-      }));
-  }
-}
-
-function buildBackendChallenge({ url }: BuildChallengeData) {
   return {
-    challengeType: challengeTypes.backend,
-    build: concatHtml({ required: frameRunner }),
-    sources: { url }
+    challengeType,
+    build: concatHtml(toBuild),
+    sources: buildSourceMap(finalFiles),
+    loadEnzyme: requiresReact16,
+    error
+  };
+}
+
+export async function buildJSChallenge(
+  {
+    challengeFiles,
+    challengeType
+  }: { challengeFiles?: ChallengeFile[]; challengeType: number },
+  options: BuildOptions
+): Promise<BuildResult> {
+  if (!challengeFiles) throw Error('No challenge files provided');
+  const pipeLine = composeFunctions(
+    ...(getTransformers(options) as unknown as ApplyFunctionProps[])
+  );
+
+  const finalFiles = await Promise.all(challengeFiles?.map(pipeLine));
+  const error = finalFiles.find(({ error }) => error)?.error;
+
+  const toBuild = error ? [] : finalFiles;
+
+  return {
+    challengeType,
+    build: toBuild
+      .reduce(
+        (body, challengeFile) => [
+          ...body,
+          challengeFile.head,
+          challengeFile.contents,
+          challengeFile.tail
+        ],
+        [] as string[]
+      )
+      .join('\n'),
+    sources: buildSourceMap(finalFiles),
+    error
+  };
+}
+
+function buildBackendChallenge({ url, challengeType }: BuildChallengeData) {
+  return {
+    challengeType,
+    build: '',
+    sources: { contents: url }
+  };
+}
+
+export async function buildPythonChallenge({
+  challengeFiles,
+  challengeType
+}: BuildChallengeData): Promise<BuildResult> {
+  if (!challengeFiles) throw new Error('No challenge files provided');
+  const pipeLine = composeFunctions(
+    ...(getPythonTransformers() as unknown as ApplyFunctionProps[])
+  );
+  const finalFiles = await Promise.all(challengeFiles.map(pipeLine));
+  const error = finalFiles.find(({ error }) => error)?.error;
+  const sources = buildSourceMap(finalFiles);
+
+  return {
+    challengeType,
+    sources,
+    build: sources?.contents,
+    error
   };
 }
 
@@ -273,16 +291,16 @@ export function updatePreview(
   buildData: BuildChallengeData,
   document: Document,
   proxyLogger: ProxyLogger
-): void {
-  if (
-    buildData.challengeType === challengeTypes.html ||
-    buildData.challengeType === challengeTypes.multifileCertProject
-  ) {
-    createMainPreviewFramer(
-      document,
-      proxyLogger,
-      getDocumentTitle(buildData)
-    )(buildData);
+): Promise<void> {
+  if (challengeHasPreview(buildData)) {
+    return new Promise<void>(resolve =>
+      createMainPreviewFramer(
+        document,
+        proxyLogger,
+        getDocumentTitle(buildData),
+        resolve
+      )(buildData)
+    );
   } else {
     throw new Error(
       `Cannot show preview for challenge type ${buildData.challengeType}`
@@ -305,10 +323,7 @@ export function updateProjectPreview(
   buildData: BuildChallengeData,
   document: Document
 ): void {
-  if (
-    buildData.challengeType === challengeTypes.html ||
-    buildData.challengeType === challengeTypes.multifileCertProject
-  ) {
+  if (challengeHasPreview(buildData)) {
     createProjectPreviewFramer(
       document,
       getDocumentTitle(buildData)
@@ -320,23 +335,32 @@ export function updateProjectPreview(
   }
 }
 
-export function challengeHasPreview({ challengeType }: ChallengeMeta): boolean {
+export function challengeHasPreview({
+  challengeType
+}: {
+  challengeType: number;
+}): boolean {
   return (
     challengeType === challengeTypes.html ||
     challengeType === challengeTypes.modern ||
-    challengeType === challengeTypes.multifileCertProject
+    challengeType === challengeTypes.multifileCertProject ||
+    challengeType === challengeTypes.multifilePythonCertProject ||
+    challengeType === challengeTypes.python ||
+    challengeType === challengeTypes.lab ||
+    challengeType === challengeTypes.pyLab ||
+    challengeType === challengeTypes.dailyChallengePy
   );
 }
 
 export function isJavaScriptChallenge({
   challengeType
-}: ChallengeMeta): boolean {
+}: {
+  challengeType: number;
+}): boolean {
   return (
     challengeType === challengeTypes.js ||
-    challengeType === challengeTypes.jsProject
+    challengeType === challengeTypes.jsProject ||
+    challengeType === challengeTypes.jsLab ||
+    challengeType === challengeTypes.dailyChallengeJs
   );
-}
-
-export function isLoopProtected(challengeMeta: ChallengeMeta): boolean {
-  return challengeMeta.superBlock !== 'coding-interview-prep';
 }

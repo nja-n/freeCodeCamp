@@ -1,23 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@freecodecamp/react-bootstrap';
 
+import { createSelector } from 'reselect';
+import { Button, Spacer } from '@freecodecamp/ui';
+import { connect } from 'react-redux';
 import Fail from '../../../assets/icons/fail';
 import LightBulb from '../../../assets/icons/lightbulb';
 import GreenPass from '../../../assets/icons/green-pass';
+import { randomCompliment } from '../../../../src/utils/get-words';
 import Help from '../../../assets/icons/help';
 import Reset from '../../../assets/icons/reset';
-import { MAX_MOBILE_WIDTH } from '../../../../../config/misc';
-import { apiLocation } from '../../../../../config/env.json';
+import { MAX_MOBILE_WIDTH } from '../../../../config/misc';
+import { apiLocation } from '../../../../config/env.json';
+import { ChallengeMeta } from '../../../redux/prop-types';
+import { Share } from '../../../components/share';
+import { ShareProps } from '../../../components/share/types';
+import Progress from '../../../components/Progress';
+import Quote from '../../../assets/icons/quote';
+import {
+  challengeMetaSelector,
+  completedPercentageSelector
+} from '../redux/selectors';
+import callGA from '../../../analytics/call-ga';
 
-const lowerJawButtonStyle = 'btn-block btn';
-
-interface LowerJawPanelProps {
-  resetButtonName: string;
-  helpButtonName: string;
+interface LowerJawPanelProps extends ShareProps {
+  resetButtonText: string;
+  helpButtonText: string;
   resetButtonEvent: () => void;
   helpButtonEvent: () => void;
   hideHelpButton: boolean;
+  showShareButton: boolean;
 }
 
 interface LowerJawTipsProps {
@@ -29,12 +41,14 @@ interface LowerJawTipsProps {
 
 interface LowerJawStatusProps {
   children: React.ReactNode;
-  congratulationText: string;
+  text: string;
   showFeedback: boolean;
   testText: string;
 }
 
 interface LowerJawProps {
+  challengeMeta: ChallengeMeta;
+  completedPercent: number;
   hint?: string;
   challengeIsCompleted: boolean;
   openHelpModal: () => void;
@@ -47,46 +61,74 @@ interface LowerJawProps {
   updateContainer: () => void;
 }
 
+const mapStateToProps = createSelector(
+  challengeMetaSelector,
+  completedPercentageSelector,
+  (challengeMeta: ChallengeMeta, completedPercent: number) => ({
+    challengeMeta,
+    completedPercent
+  })
+);
+
+const sentenceArray = [
+  'learn.sorry-try-again',
+  'learn.sorry-keep-trying',
+  'learn.sorry-getting-there',
+  'learn.sorry-hang-in-there',
+  'learn.sorry-dont-giveup'
+];
+
+const sentencePicker = (shownAttempts: number) => {
+  return sentenceArray[shownAttempts % sentenceArray.length];
+};
+
 const LowerButtonsPanel = ({
-  resetButtonName,
-  helpButtonName,
+  resetButtonText,
+  helpButtonText,
   resetButtonEvent,
   hideHelpButton,
-  helpButtonEvent
+  helpButtonEvent,
+  showShareButton,
+  superBlock,
+  block
 }: LowerJawPanelProps) => {
   return (
     <>
       <hr />
-      <div className='lower-jaw-icon-bar'>
-        <button
-          className='btn fade-in'
-          title={resetButtonName}
-          aria-label={resetButtonName}
-          data-cy='reset-code-button'
-          onClick={resetButtonEvent}
-        >
-          <Reset />
-        </button>
-
-        {hideHelpButton && (
-          <button
-            className='btn fade-in'
-            id='get-help-button'
-            title={helpButtonName}
-            aria-label={helpButtonName}
-            data-cy='get-help-button'
-            onClick={helpButtonEvent}
-          >
-            <Help />
-          </button>
+      <div className='utility-bar'>
+        {showShareButton && (
+          <div className='utility-bar-top'>
+            <Share superBlock={superBlock} block={block} />
+          </div>
         )}
+
+        <div className='utility-bar-bottom'>
+          <Button
+            data-playwright-test-label='lowerJaw-reset-button'
+            className='fade-in'
+            onClick={resetButtonEvent}
+          >
+            <Reset />
+            {resetButtonText}
+          </Button>
+
+          {hideHelpButton && (
+            <Button
+              className='fade-in'
+              id='get-help-button'
+              onClick={helpButtonEvent}
+            >
+              <Help />
+              {helpButtonText}
+            </Button>
+          )}
+        </div>
       </div>
     </>
   );
 };
 
 const LowerJawTips = ({
-  testText,
   learnEncouragementText,
   showFeedback,
   htmlDescription
@@ -94,15 +136,18 @@ const LowerJawTips = ({
   return (
     <>
       <div
-        data-cy='failing-test-feedback'
+        data-playwright-test-label='lowerJaw-failing-test-feedback'
         className='test-status fade-in'
         aria-hidden={showFeedback}
       >
-        <Fail aria-hidden='true' />
-        <h2>{testText}</h2>
+        <Fail />
         <p>{learnEncouragementText}</p>
       </div>
-      <div className='hint-status fade-in' aria-hidden={showFeedback}>
+      <div
+        data-playwright-test-label='lowerJaw-failing-hint'
+        className='hint-status fade-in'
+        aria-hidden={showFeedback}
+      >
         <LightBulb aria-hidden='true' />
         <div
           className='hint-description'
@@ -113,25 +158,36 @@ const LowerJawTips = ({
   );
 };
 
+const LowerJawQuote = ({ quote }: { quote: string }) => (
+  <div className='hint-status fade-in'>
+    <Quote aria-hidden='true' />
+    <div id='lowerjaw-quote'>
+      <p>{`"${quote}"`}</p>
+    </div>
+  </div>
+);
+
 const LowerJawStatus = ({
   children,
-  congratulationText,
-  showFeedback,
-  testText
+  text,
+  showFeedback
 }: LowerJawStatusProps) => {
   return (
     <div className='test-status fade-in' aria-hidden={showFeedback}>
       <GreenPass aria-hidden='true' />
-      <h2>{testText}</h2>
       <p className='status'>
-        {congratulationText}
+        {text}
         {children}
       </p>
     </div>
   );
 };
 
+const isBlockCompleted = 100;
+
 const LowerJaw = ({
+  challengeMeta: { superBlock, block },
+  completedPercent,
   openHelpModal,
   challengeIsCompleted,
   hint,
@@ -143,18 +199,19 @@ const LowerJaw = ({
   isSignedIn,
   updateContainer
 }: LowerJawProps): JSX.Element => {
-  const hintRef = React.useRef('');
+  const [shownHint, setShownHint] = useState(hint);
+  const [quote, setQuote] = useState(randomCompliment());
   const [runningTests, setRunningTests] = useState(false);
   const [testFeedbackHeight, setTestFeedbackHeight] = useState(0);
-  const [currentAttempts, setCurrentAttempts] = useState(attempts);
-  const [isFeedbackHidden, setIsFeedbackHidden] = useState(false);
+  const [shownAttempts, setShownAttempts] = useState(attempts);
+  const [isFeedbackHidden, setIsFeedbackHidden] = useState(true);
   const { t } = useTranslation();
   const testFeedbackRef = React.createRef<HTMLDivElement>();
+
   const checkYourCodeButtonRef = useRef<HTMLButtonElement>(null);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   const [focusManagementCompleted, setFocusManagementCompleted] =
     useState(false);
-
   const isCheckYourCodeButtonClicked = () => {
     const activeElement = document.activeElement;
     // Need to check Submit button as well because if it has focus then it is
@@ -165,34 +222,41 @@ const LowerJaw = ({
     );
   };
 
+  const showShareButton =
+    challengeIsCompleted && completedPercent === isBlockCompleted;
+
+  // Attempts should only be zero when the step is reset, so we should reset
+  // the state here.
+  if (attempts !== shownAttempts && attempts === 0) {
+    setShownAttempts(0);
+    setRunningTests(false);
+    setIsFeedbackHidden(false);
+    setShownHint('');
+  }
   useEffect(() => {
-    // prevent unnecessary updates:
-    if (attempts === currentAttempts) return;
-    // Attempts should only be zero when the step is reset, so we should reset
-    // the state here.
-    if (attempts === 0) {
-      setCurrentAttempts(0);
-      setRunningTests(false);
-      setIsFeedbackHidden(false);
-      hintRef.current = '';
-    } else if (attempts > 0 && hint) {
+    if (attempts > shownAttempts) {
       //hide the feedback from SR until the "Running tests" are displayed and removed.
       setIsFeedbackHidden(true);
       setRunningTests(true);
       //to prevent the changing attempts value from immediately triggering a new
-      //render, the rendered component only depends on currentAttempts. Since
-      //currentAttempts is updated with when the feedback is hidden, the screen
-      //reader should only read out the new message.
-      setCurrentAttempts(attempts);
-      hintRef.current = hint;
-
+      //render, the rendered component only depends on shownAttempts. Since
+      //shownAttempts is updated with when the feedback is hidden, the screen
+      //reader should only read out the new message. Note: this starts with the
+      //second encouragement since attempts starts at 1.
+      setShownAttempts(attempts);
       //display the test feedback contents.
       setTimeout(() => {
         setRunningTests(false);
         setIsFeedbackHidden(false);
       }, 300);
     }
-  }, [attempts, hint, currentAttempts]);
+  }, [attempts, shownAttempts]);
+
+  useEffect(() => {
+    // Since there's no guarantee that hint and attempts update in the same
+    // render, hints have to be updated separately.
+    if (hint) setShownHint(hint);
+  }, [hint]);
 
   useEffect(() => {
     if (challengeIsCompleted) {
@@ -206,6 +270,7 @@ const LowerJaw = ({
       }
       // Delay focusing Submit button so that screen reader will announce
       // it after the test results.
+      setQuote(randomCompliment());
       setTimeout(() => {
         submitButtonRef.current?.focus();
         setFocusManagementCompleted(true);
@@ -224,65 +289,73 @@ const LowerJaw = ({
     updateContainer();
   });
 
-  const currentText = `<h2 className="hint">${t('learn.hint')}</h2> ${
-    hintRef.current
-  }`;
-  const sentencePicker = () => {
-    const sentenceArray = [
-      'learn.sorry-try-again',
-      'learn.sorry-keep-trying',
-      'learn.sorry-getting-there',
-      'learn.sorry-hang-in-there',
-      'learn.sorry-dont-giveup'
-    ];
-    return sentenceArray[currentAttempts % sentenceArray.length];
-  };
-
   const isAttemptsLargerThanTest =
-    currentAttempts &&
+    shownAttempts &&
     testsLength &&
-    (currentAttempts >= testsLength || currentAttempts >= 3);
+    (shownAttempts >= testsLength || shownAttempts >= 3);
 
-  const showDesktopButton = window.innerWidth > MAX_MOBILE_WIDTH;
+  const isDesktop = window.innerWidth > MAX_MOBILE_WIDTH;
+  const isMacOS = navigator.userAgent.includes('Mac OS');
 
-  const checkButtonText = showDesktopButton
-    ? t('buttons.check-code')
-    : t('buttons.check-code-2');
+  const checkButtonText = isDesktop
+    ? isMacOS
+      ? t('buttons.check-code-cmd')
+      : t('buttons.check-code-ctrl')
+    : t('buttons.check-code');
+
+  const submitButtonText = isDesktop
+    ? isMacOS
+      ? t('buttons.submit-and-go-cmd')
+      : t('buttons.submit-and-go-ctrl')
+    : t('buttons.submit-and-go');
 
   const showSignInButton = !isSignedIn && challengeIsCompleted;
 
   return (
     <div className='action-row-container'>
       {showSignInButton && (
-        <Button
-          data-cy='sign-in-button'
-          block={true}
-          href={`${apiLocation}/signin`}
-          className='btn-cta'
-        >
-          {t('learn.sign-in-save')}
-        </Button>
+        <>
+          <a
+            href={`${apiLocation}/signin`}
+            className='btn-cta btn btn-block'
+            onClick={() => {
+              callGA({
+                event: 'sign_in'
+              });
+            }}
+          >
+            {t('learn.sign-in-save')}
+          </a>
+          <Spacer size='xxs' />
+        </>
       )}
-      <button
-        className={lowerJawButtonStyle}
-        data-cy='submit-lowerJaw-button'
+      <Button
+        data-playwright-test-label='lowerJaw-submit-button'
+        block
         onClick={tryToSubmitChallenge}
         {...(!challengeIsCompleted && { 'aria-hidden': true })}
         ref={submitButtonRef}
       >
-        {t('buttons.submit-and-go')}
-      </button>
-      <button
-        className={lowerJawButtonStyle}
-        data-cy='check-lowerJaw-button'
-        onClick={tryToExecuteChallenge}
-        {...(challengeIsCompleted &&
-          !focusManagementCompleted && { tabIndex: -1, className: 'sr-only' })}
-        {...(focusManagementCompleted && { 'aria-hidden': true })}
-        ref={checkYourCodeButtonRef}
+        {submitButtonText}
+      </Button>
+      <div
+        className={
+          challengeIsCompleted && !focusManagementCompleted ? 'sr-only' : ''
+        }
       >
-        {checkButtonText}
-      </button>
+        <Button
+          data-playwright-test-label='lowerJaw-check-button'
+          block
+          onClick={tryToExecuteChallenge}
+          {...(challengeIsCompleted &&
+            !focusManagementCompleted && { tabIndex: -1 })}
+          {...(challengeIsCompleted &&
+            focusManagementCompleted && { 'aria-hidden': true })}
+          ref={checkYourCodeButtonRef}
+        >
+          {checkButtonText}
+        </Button>
+      </div>
       {/* Using aria-live=polite instead of assertive works better with ORCA */}
       <div
         style={runningTests ? { height: `${testFeedbackHeight}px` } : {}}
@@ -294,33 +367,51 @@ const LowerJaw = ({
           <span className='sr-only'>{t('aria.running-tests')}</span>
         )}
         {challengeIsCompleted && (
-          <LowerJawStatus
-            testText={t('learn.test')}
-            showFeedback={isFeedbackHidden}
-            congratulationText={t('learn.congratulations')}
-          >
-            {!isCheckYourCodeButtonClicked() && (
-              <span className='sr-only'>, {t('aria.submit')}</span>
-            )}
-          </LowerJawStatus>
+          <>
+            <LowerJawStatus
+              testText={t('learn.test')}
+              showFeedback={isFeedbackHidden}
+              text={t('learn.congratulations')}
+            >
+              {!isCheckYourCodeButtonClicked() && (
+                <span className='sr-only'>, {t('aria.submit')}</span>
+              )}
+            </LowerJawStatus>
+            <LowerJawQuote quote={quote} />
+            <span className='sr-only'>
+              {t('learn.percent-complete', { percent: completedPercent })}
+            </span>
+          </>
         )}
-        {hintRef.current && !challengeIsCompleted && (
+        {shownHint && !challengeIsCompleted && (
           <LowerJawTips
+            data-testid='lowerJaw-tips'
             showFeedback={isFeedbackHidden}
             testText={t('learn.test')}
-            htmlDescription={currentText}
-            learnEncouragementText={t(sentencePicker())}
+            htmlDescription={shownHint ?? ''}
+            learnEncouragementText={t(sentencePicker(shownAttempts))}
           />
         )}
       </div>
+      {challengeIsCompleted && (
+        <>
+          <hr></hr>
+          <div className='progress-bar-container'>
+            <Progress />
+          </div>
+        </>
+      )}
       <LowerButtonsPanel
-        resetButtonName={t('buttons.reset-step')}
+        resetButtonText={t('buttons.reset')}
+        helpButtonText={t('buttons.help')}
         resetButtonEvent={openResetModal}
         hideHelpButton={Boolean(
           isAttemptsLargerThanTest && !challengeIsCompleted
         )}
-        helpButtonName={t('buttons.get-help')}
         helpButtonEvent={openHelpModal}
+        showShareButton={showShareButton}
+        superBlock={superBlock}
+        block={block}
       />
     </div>
   );
@@ -328,4 +419,4 @@ const LowerJaw = ({
 
 LowerJaw.displayName = 'LowerJaw';
 
-export default LowerJaw;
+export default connect(mapStateToProps)(LowerJaw);

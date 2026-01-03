@@ -5,6 +5,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   triage:
     permissions:
@@ -12,9 +16,9 @@ jobs:
       contents: read
       # for actions/labeler to add labels to PRs
       pull-requests: write
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/labeler@ba790c862c380240c6d5e7427be5ace9a05c754b # v4
+      - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
         with:
           repo-token: '${{ secrets.GITHUB_TOKEN }}'
           sync-labels: true

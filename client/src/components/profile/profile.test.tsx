@@ -1,14 +1,17 @@
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { Themes } from '../settings/theme';
-
+import { Provider } from 'react-redux';
+import { createStore } from 'redux';
+import { UserThemes } from '../../redux/types';
 import Profile from './profile';
 
-jest.mock('../../analytics');
+vi.mock('../../analytics');
+//workaround to avoid some strange gatsby error:
+window.___loader = { enqueue: () => {}, hovering: () => {} };
 
 const userProps = {
   user: {
-    acceptedPrivacyTerms: true,
     currentChallengeId: 'string',
     email: 'string',
     emailVerified: true,
@@ -25,10 +28,6 @@ const userProps = {
       showDonation: false
     },
     calendar: {},
-    streak: {
-      current: 1,
-      longest: 1
-    },
     completedChallenges: [],
     portfolio: [],
     progressTimestamps: [],
@@ -47,13 +46,16 @@ const userProps = {
     sendQuincyEmail: true,
     sound: true,
     keyboardShortcuts: false,
-    theme: Themes.Default,
+    theme: UserThemes.Default,
     twitter: 'string',
+    bluesky: 'string',
     username: 'string',
     website: 'string',
     yearsTopContributor: [],
     isDonating: false,
     is2018DataVisCert: true,
+    isA2EnglishCert: true,
+    isB1EnglishCert: true,
     isApisMicroservicesCert: true,
     isBackEndCert: true,
     isDataVisCert: true,
@@ -62,17 +64,21 @@ const userProps = {
     isFrontEndLibsCert: true,
     isFullStackCert: true,
     isInfosecQaCert: true,
+    isPythonCertV9: true,
     isQaCertV7: true,
     isInfosecCertV7: true,
+    isJavascriptCertV9: true,
     isJsAlgoDataStructCert: true,
     isRespWebDesignCert: true,
+    isRespWebDesignCertV9: true,
     isSciCompPyCertV7: true,
     isDataAnalysisPyCertV7: true,
     isMachineLearningPyCertV7: true,
     isRelationalDatabaseCertV8: true,
-    isCollegeAlgebraPyCertV8: true
+    isRelationalDatabaseCertV9: true,
+    isCollegeAlgebraPyCertV8: true,
+    isFoundationalCSharpVertV8: true
   },
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   navigate: () => {}
 };
 
@@ -80,17 +86,30 @@ const notMyProfileProps = {
   isSessionUser: false,
   ...userProps
 };
-
+function reducer() {
+  return {
+    app: { user: { sessionUser: userProps.user } }
+  };
+}
+function renderWithRedux(ui: JSX.Element) {
+  return render(<Provider store={createStore(reducer)}>{ui}</Provider>);
+}
 describe('<Profile/>', () => {
   it('renders the report button on another persons profile', () => {
-    render(<Profile {...notMyProfileProps} />);
+    // TODO: Profile is a mess, it shouldn't depend on the entire user. Each
+    // component Camper, Stats, HeatMap etc should be get the relevant data from
+    // the store themselves.
+
+    // @ts-expect-error - quick hack to mollify TS.
+    renderWithRedux(<Profile {...notMyProfileProps} />);
 
     const reportButton: HTMLElement = screen.getByText('buttons.flag-user');
     expect(reportButton).toHaveAttribute('href', '/user/string/report-user');
   });
 
   it('renders correctly', () => {
-    const { container } = render(<Profile {...notMyProfileProps} />);
+    // @ts-expect-error - quick hack to mollify TS.
+    const { container } = renderWithRedux(<Profile {...notMyProfileProps} />);
 
     expect(container).toMatchSnapshot();
   });

@@ -1,35 +1,60 @@
-FROM node:16-buster AS builder
-# Install doppler CLI
-RUN (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh) | sh -s -- --verify-signature
+FROM node:22-bookworm AS builder
+RUN apt-get update && apt-get install -y jq
+# global installs need root permissions, so have to happen before we switch to
+# the node user
+RUN npm i -g pnpm@10
 # node images create a non-root user that we can use
 USER node
 WORKDIR /home/node/build
-COPY --chown=node:node . .
-# Pass `DOPPLER_TOKEN` at build time to create an encrypted snapshot for high-availability
-ARG DOPPLER_TOKEN
-RUN \
-  doppler secrets download doppler.encrypted.json &&\
-  pnpm install --no-progress --ignore-scripts &&\
-  doppler run --fallback=doppler.encrypted.json --command="npm run create:config" &&\
-  doppler run --fallback=doppler.encrypted.json --command="npm run build:curriculum" &&\
-  doppler run --fallback=doppler.encrypted.json --command="npm run build:server"
 
-FROM node:16-alpine as depends
+COPY --chown=node:node *.* .
+COPY --chown=node:node api/ api/
+COPY --chown=node:node shared/ shared/
+COPY --chown=node:node tools/ tools/
+COPY --chown=node:node curriculum/ curriculum/
+# TODO: AFAIK it's just the intro translations. Those should be folded into the
+# curriculum and then we can remove this.
+COPY --chown=node:node client/ client/
+
+RUN pnpm config set dedupe-peer-dependents false
+# While we want to ignore scripts generally, we do need to generate the prisma
+# client.
+RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN cd api && pnpm prisma generate
+
+# The api needs to source curriculum.json and build:curriculum relies on the
+# following env vars.
+ARG SHOW_UPCOMING_CHANGES=false
+ENV SHOW_UPCOMING_CHANGES=$SHOW_UPCOMING_CHANGES
+
+RUN pnpm compile:ts
+RUN pnpm build:curriculum
+RUN pnpm -F=api build
+
+FROM node:22-bookworm AS deps
+RUN apt-get update && apt-get install -y jq
+
+WORKDIR /home/node/build
+COPY --chown=node:node pnpm*.yaml .
+COPY --chown=node:node package.json .
+COPY --chown=node:node api/ api/
+RUN npm i -g pnpm@10
+
+# Weirdly this config does not seem necessary for the new api (the same number
+# of deps are installed in both cases), but I'm including it just for
+# consistency.
+RUN pnpm config set dedupe-peer-dependents false
+RUN pnpm install --prod --ignore-scripts -F=api --frozen-lockfile
+RUN cd api && npx prisma@$(jq -r '.devDependencies.prisma' < package.json) generate
+
+FROM node:22-bookworm
 USER node
-WORKDIR /home/node/depends
-COPY --chown=node:node . .
-RUN pnpm install --production --workspace=api-server --no-progress --ignore-scripts
+WORKDIR /home/node/fcc
+COPY --from=builder --chown=node:node /home/node/build/api/dist/ ./
+COPY --from=builder --chown=node:node /home/node/build/api/package.json api/
+COPY --from=builder --chown=node:node /home/node/build/shared-dist/config/curriculum.json shared-dist/config/
 
-FROM node:16-alpine
-RUN npm i -g pm2@4
-USER node
-WORKDIR /home/node/api
-COPY --from=builder --chown=node:node /home/node/build/api-server/lib/ api-server/lib/
-COPY --from=builder --chown=node:node /home/node/build/utils/ utils/
-COPY --from=builder --chown=node:node /home/node/build/config/ config/
-COPY --from=depends --chown=node:node /home/node/depends/api-server/node_modules/ api-server/node_modules/
-COPY --from=depends --chown=node:node /home/node/depends/node_modules/ node_modules/
-WORKDIR /home/node/api/api-server
-CMD ["pm2-runtime", "./lib/production-start.js"]
+COPY --from=deps --chown=node:node /home/node/build/node_modules/ node_modules/
+COPY --from=deps --chown=node:node /home/node/build/api/node_modules/ api/node_modules/
 
-# TODO: don't copy mocks/fixtures
+CMD ["node", "api/src/server.js"]

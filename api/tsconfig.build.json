@@ -2,9 +2,9 @@
   "extends": "./tsconfig",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "../",
     "noEmit": false
   },
   "include": ["src"],
-  "exclude": ["**/*.test.*", "**/__mocks__/*", "**/__tests__/*"]
+  "exclude": ["**/*.test.*"]
 }

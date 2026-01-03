@@ -1,92 +1,109 @@
 import React from 'react';
-import { Alert } from '@freecodecamp/react-bootstrap';
+import { Spacer } from '@freecodecamp/ui';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useTranslation } from 'react-i18next';
+
 import { Link } from '../helpers';
+import { ProgressBar } from '../Progress/progress-bar';
+import './learn-alert.css';
 
 interface LearnAlertProps {
-  onDonationAlertClick: () => void;
+  onLearnDonationAlertClick: () => void;
   isDonating: boolean;
 }
 
 const LearnAlert = ({
-  onDonationAlertClick,
+  onLearnDonationAlertClick,
   isDonating
 }: LearnAlertProps): JSX.Element | null => {
   const { t } = useTranslation();
-  const researchRecruitment = useFeature('show-research-recruitment-alert');
-  const universityCreation = useFeature('university-creation-alert');
-  const seasonalMessage = useFeature('seasonal-alert');
-
-  const researchRecruitmentAlert = (
-    <Alert>
-      <p>
-        <b>Launching Oct 19</b>: freeCodeCamp is teaming up with researchers
-        from Stanford and UPenn to study how to help people build strong coding
-        habits.
-      </p>
-      <p style={{ marginBottom: 20, marginTop: 14 }}>
-        Would you like to get involved? You’ll get free coaching from our
-        scientists.
-      </p>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+  const seasonalAlertFlag = useFeature('seasonal-alert');
+  const progressAlertFlag2024 = useFeature('progress-alert-2024');
+  const createUniversityFlag = useFeature('university-alert');
+  const progressAlertDefault = (text: string, value?: number) => (
+    <div className='learn-alert annual-donation-alert'>
+      {value && (
+        <>
+          <div className='text-center'>
+            <h2>{t('learn.donation-heading')}</h2>
+            <Spacer size='xs' />
+            <b className='m-0 progress-percent-value'>{`${value}%`}</b>
+          </div>
+          <div aria-hidden='true' className='progress-wrapper'>
+            <div>
+              <ProgressBar now={value} />
+            </div>
+          </div>
+        </>
+      )}
+      <p>{text}</p>
+      <Spacer size='m' />
+      <p className={'btn-container'}>
         <Link
-          className='btn'
+          className='btn donate-button'
           key='donate'
           sameTab={false}
-          to='https://wharton.qualtrics.com/jfe/form/SV_57rJfXROkQDDU2y'
+          to='/donate'
+          onClick={onLearnDonationAlertClick}
         >
-          Learn about HabitLab
+          {t('buttons.donate')}
         </Link>
-      </div>
-    </Alert>
+      </p>
+    </div>
   );
 
-  const seasonalMessageAlert = (
-    <Alert bsStyle='info' className='annual-donation-alert'>
+  const seasonalAlertFlagAlert = (
+    <div className='learn-alert annual-donation-alert'>
       <p>
         <b>{t('learn.season-greetings-fcc')}</b>
       </p>
       <p>{t('learn.if-getting-value')}</p>
       <hr />
-      <p className={'text-center'}>
+      <p className='btn-container'>
         <Link
-          className='btn'
+          className='btn donate-button'
           key='donate'
           sameTab={false}
           to='/donate'
-          onClick={onDonationAlertClick}
+          onClick={onLearnDonationAlertClick}
         >
           {t('buttons.donate')}
         </Link>
       </p>
-    </Alert>
+    </div>
   );
 
-  const universityCreationAlert = (
-    <Alert bsStyle='info' className='annual-donation-alert'>
+  const progressAlert2024 = progressAlertDefault(
+    t('donate.help-us-reach-20k'),
+    Number(progressAlertFlag2024.value)
+  );
+
+  const universityAlert = (
+    <div className='learn-alert university-alert'>
       <p>
         <b>{t('learn.building-a-university')}</b>
       </p>
       <p>{t('learn.if-help-university')}</p>
-      <hr />
-      <p className={'text-center'}>
+      <Spacer size='m' />
+      <p className='btn-container text-center'>
         <Link
-          className='btn'
+          className='btn donate-button'
           key='donate'
           sameTab={false}
           to='/donate'
-          onClick={onDonationAlertClick}
+          onClick={onLearnDonationAlertClick}
         >
-          {t('donate.become-supporter')}
+          {t('buttons.donate')}
         </Link>
       </p>
-    </Alert>
+    </div>
   );
 
-  if (researchRecruitment.on) return researchRecruitmentAlert;
-  if (universityCreation.on && !isDonating) return universityCreationAlert;
-  if (seasonalMessage.on) return seasonalMessageAlert;
+  if (!isDonating) {
+    if (createUniversityFlag.on) return universityAlert;
+    if (progressAlertFlag2024.on) return progressAlert2024;
+    if (seasonalAlertFlag.on) return seasonalAlertFlagAlert;
+  }
   return null;
 };
 

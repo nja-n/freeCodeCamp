@@ -9,6 +9,8 @@ import { saveRoute } from './routes/save-route';
 import { stepRoute } from './routes/step-route';
 import { superblockRoute } from './routes/super-block-route';
 import { toolsRoute } from './routes/tools-route';
+import { moduleRoute } from './routes/module-route';
+import { moduleBlockRoute } from './routes/module-block-route';
 
 const app = express();
 
@@ -20,7 +22,6 @@ app.use(
 
 app.use(express.static('public'));
 app.use(express.json());
-app.use(express.urlencoded());
 
 app.post('/:superblock/:block/_tools/:command', (req, res, next) => {
   toolsRoute(req, res).catch(next);
@@ -28,6 +29,14 @@ app.post('/:superblock/:block/_tools/:command', (req, res, next) => {
 
 app.post('/:superblock/:block/:step', (req, res, next) => {
   saveRoute(req, res).catch(next);
+});
+
+app.get(`/:superblock/chapters/:chapter`, (req, res, next) => {
+  moduleRoute(req, res).catch(next);
+});
+
+app.get(`/:superblock/chapters/:chapter/modules/:module`, (req, res, next) => {
+  moduleBlockRoute(req, res).catch(next);
 });
 
 app.get('/:superblock/:block/:step', (req, res, next) => {

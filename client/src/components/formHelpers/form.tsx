@@ -8,11 +8,13 @@ import {
   editorValidator,
   composeValidators,
   fCCValidator,
-  httpValidator
+  httpValidator,
+  sourceCodeLinkExistsValidator,
+  sourceCodeLinkPublicValidator
 } from './form-validators';
 import FormFields, { FormOptions } from './form-fields';
 
-type URLValues = {
+type FormValues = {
   [key: string]: string;
 };
 
@@ -22,7 +24,7 @@ type ValidationError = {
 };
 
 export type ValidatedValues = {
-  values: URLValues;
+  values: FormValues;
   errors: ValidationError[];
   invalidValues: (JSX.Element | null)[];
 };
@@ -31,17 +33,33 @@ const normalizeOptions = {
   stripWWW: false
 };
 
-function formatUrlValues(
-  values: URLValues,
+function validateFormValues(
+  formValues: FormValues,
   options: FormOptions
 ): ValidatedValues {
-  const { isEditorLinkAllowed, isLocalLinkAllowed, types } = options;
+  const {
+    isEditorLinkAllowed,
+    isLocalLinkAllowed,
+    isSourceCodeLinkRequired,
+    types
+  } = options;
   const validatedValues: ValidatedValues = {
     values: {},
     errors: [],
     invalidValues: []
   };
-  const urlValues = Object.keys(values).reduce((result, key: string) => {
+
+  const formFields = Object.entries(formValues);
+  // We don't always get a githubLink field in formValues, so we can't simply
+  // validate that field like the others. We have to handle it separately.
+  if (isSourceCodeLinkRequired) {
+    const githubLink = formValues['githubLink'];
+    if (!githubLink) {
+      validatedValues.invalidValues.push(sourceCodeLinkExistsValidator(''));
+    }
+  }
+
+  const urlValues = formFields.reduce((result, [key, value]) => {
     // NOTE: pathValidator is not used here, because it is only used as a
     // suggestion - should not prevent form submission
     const validators = [fCCValidator, httpValidator];
@@ -52,8 +70,13 @@ function formatUrlValues(
     if (!isLocalLinkAllowed) {
       validators.push(localhostValidator);
     }
+    if (key === 'githubLink') {
+      if (isSourceCodeLinkRequired) {
+        validators.push(sourceCodeLinkExistsValidator);
+      }
+      validators.push(sourceCodeLinkPublicValidator);
+    }
 
-    let value: string = values[key];
     const nullOrWarning = composeValidators(...validators)(value);
     if (nullOrWarning) {
       validatedValues.invalidValues.push(nullOrWarning);
@@ -81,7 +104,7 @@ export type StrictSolutionFormProps = {
   id: string;
   initialValues?: Record<string, unknown>;
   options: FormOptions;
-  submit: (values: ValidatedValues, ...args: unknown[]) => void;
+  submit: (values: ValidatedValues) => void;
 };
 
 export const StrictSolutionForm = ({
@@ -96,8 +119,8 @@ export const StrictSolutionForm = ({
   return (
     <Form
       initialValues={initialValues}
-      onSubmit={(values: URLValues, ...args: unknown[]) => {
-        submit(formatUrlValues(values, options), ...args);
+      onSubmit={(values: FormValues) => {
+        submit(validateFormValues(values, options));
       }}
     >
       {({ handleSubmit, pristine, error }) => (
@@ -105,6 +128,7 @@ export const StrictSolutionForm = ({
           id={`dynamic-${id}`}
           onSubmit={handleSubmit as (e: FormEvent) => void}
           style={{ width: '100%' }}
+          data-playwright-test-label='form-helper-form'
         >
           <FormFields formFields={formFields} options={options} />
           <BlockSaveButton

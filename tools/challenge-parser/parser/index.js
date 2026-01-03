@@ -3,9 +3,12 @@ const frontmatter = require('remark-frontmatter');
 const remark = require('remark-parse');
 const { readSync } = require('to-vfile');
 const unified = require('unified');
+const addFillInTheBlank = require('./plugins/add-fill-in-the-blank');
 const addFrontmatter = require('./plugins/add-frontmatter');
+const validateSections = require('./plugins/validate-sections');
 const addSeed = require('./plugins/add-seed');
 const addSolution = require('./plugins/add-solution');
+const addHooks = require('./plugins/add-hooks');
 const addTests = require('./plugins/add-tests');
 const addText = require('./plugins/add-text');
 const addVideoQuestion = require('./plugins/add-video-question');
@@ -13,6 +16,9 @@ const addAssignment = require('./plugins/add-assignment');
 const replaceImports = require('./plugins/replace-imports');
 const restoreDirectives = require('./plugins/restore-directives');
 const tableAndStrikeThrough = require('./plugins/table-and-strikethrough');
+const addScene = require('./plugins/add-scene');
+const addQuizzes = require('./plugins/add-quizzes');
+const addInteractiveElements = require('./plugins/add-interactive-elements');
 
 // by convention, anything that adds to file.data has the name add<name>.
 const processor = unified()
@@ -28,6 +34,8 @@ const processor = unified()
   .use(frontmatter, ['yaml'])
   // extract the content from that 'yaml' node
   .use(addFrontmatter)
+  // validate all section markers before any plugin tries to extract sections
+  .use(validateSections)
   // Any imports will be replaced (in the tree) with
   // the sub-tree of the target file. e.g.
   // ::import{component="Script" from="./file.path" }
@@ -40,14 +48,25 @@ const processor = unified()
   // about.
   .use(addSeed)
   .use(addSolution)
+  .use(addInteractiveElements)
   // the directives will have been parsed and used by this point, any remaining
   // 'directives' will be from text like the css selector :root. These should be
   // converted back to text before they're added to the challenge object.
   .use(restoreDirectives)
+  .use(addFillInTheBlank)
   .use(addVideoQuestion)
   .use(addAssignment)
+  .use(addScene)
+  .use(addQuizzes)
+  .use(addHooks)
   .use(addTests)
-  .use(addText, ['description', 'instructions', 'notes']);
+  .use(addText, [
+    'description',
+    'instructions',
+    'notes',
+    'explanation',
+    'transcript'
+  ]);
 
 exports.parseMD = function parseMD(filename) {
   return new Promise((resolve, reject) => {

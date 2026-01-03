@@ -1,14 +1,21 @@
 import React, { ReactNode, useEffect } from 'react';
 import Helmet from 'react-helmet';
 import { useTranslation, withTranslation } from 'react-i18next';
+import { useMediaQuery } from 'react-responsive';
 import { connect } from 'react-redux';
 import { bindActionCreators, Dispatch } from 'redux';
 import { createSelector } from 'reselect';
-import { useStaticQuery, graphql } from 'gatsby';
+import { Spacer } from '@freecodecamp/ui';
+import envData, { clientLocale } from '../../../config/env.json';
 
 import latoBoldURL from '../../../static/fonts/lato/Lato-Bold.woff';
 import latoLightURL from '../../../static/fonts/lato/Lato-Light.woff';
 import latoRegularURL from '../../../static/fonts/lato/Lato-Regular.woff';
+
+import jpSansBoldURL from '../../../static/fonts/noto-sans-japanese/NotoSansJP-Bold.woff';
+import jpSansLightURL from '../../../static/fonts/noto-sans-japanese/NotoSansJP-Light.woff';
+import jpSansRegularURL from '../../../static/fonts/noto-sans-japanese/NotoSansJP-Regular.woff';
+
 import hackZeroSlashBoldURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Bold.woff';
 import hackZeroSlashItalicURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Italic.woff';
 import hackZeroSlashRegularURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Regular.woff';
@@ -16,67 +23,72 @@ import hackZeroSlashRegularURL from '../../../static/fonts/hack-zeroslash/Hack-Z
 import { isBrowser } from '../../../utils';
 import {
   fetchUser,
+  initializeTheme,
   onlineStatusChange,
-  serverStatusChange,
-  updateAllChallengesInfo
+  serverStatusChange
 } from '../../redux/actions';
 import {
   isSignedInSelector,
+  examInProgressSelector,
   userSelector,
   isOnlineSelector,
   isServerOnlineSelector,
-  showCodeAllySelector,
-  userFetchStateSelector
+  userFetchStateSelector,
+  themeSelector
 } from '../../redux/selectors';
 
-import {
-  UserFetchState,
-  User,
-  AllChallengeNode,
-  CertificateNode
-} from '../../redux/prop-types';
+import { UserFetchState, User } from '../../redux/prop-types';
 import BreadCrumb from '../../templates/Challenges/components/bread-crumb';
 import Flash from '../Flash';
 import { flashMessageSelector, removeFlashMessage } from '../Flash/redux';
 import SignoutModal from '../signout-modal';
+import StagingWarningModal from '../staging-warning-modal';
 import Footer from '../Footer';
 import Header from '../Header';
 import OfflineWarning from '../OfflineWarning';
 import { Loader } from '../helpers';
+import {
+  MAX_MOBILE_WIDTH,
+  EX_SMALL_VIEWPORT_HEIGHT
+} from '../../../config/misc';
 
+import '@freecodecamp/ui/dist/base.css';
 // preload common fonts
 import './fonts.css';
 import './global.css';
 import './variables.css';
 import './rtl-layout.css';
-import { Themes } from '../settings/theme';
+import { LocalStorageThemes } from '../../redux/types';
+import DailyChallengeBreadCrumb from '../../templates/Challenges/components/daily-challenge-bread-crumb';
 
 const mapStateToProps = createSelector(
   isSignedInSelector,
+  examInProgressSelector,
   flashMessageSelector,
   isOnlineSelector,
   isServerOnlineSelector,
   userFetchStateSelector,
-  showCodeAllySelector,
   userSelector,
+  themeSelector,
   (
     isSignedIn,
+    examInProgress: boolean,
     flashMessage,
     isOnline: boolean,
     isServerOnline: boolean,
     fetchState: UserFetchState,
-    showCodeAlly: boolean,
-    user: User
+    user: User,
+    theme: LocalStorageThemes
   ) => ({
     isSignedIn,
+    examInProgress,
     flashMessage,
     hasMessage: !!flashMessage.message,
     isOnline,
     isServerOnline,
     fetchState,
-    theme: user.theme,
-    showCodeAlly,
-    user
+    user,
+    theme
   })
 );
 
@@ -89,7 +101,7 @@ const mapDispatchToProps = (dispatch: Dispatch) =>
       removeFlashMessage,
       onlineStatusChange,
       serverStatusChange,
-      updateAllChallengesInfo
+      initializeTheme
     },
     dispatch
   );
@@ -101,21 +113,18 @@ interface DefaultLayoutProps extends StateProps, DispatchProps {
   pathname: string;
   showFooter?: boolean;
   isChallenge?: boolean;
+  isDailyChallenge?: boolean;
+  dailyChallengeParam?: string;
+  usesMultifileEditor?: boolean;
   block?: string;
-  showCodeAlly: boolean;
+  examInProgress: boolean;
   superBlock?: string;
 }
-
-const getSystemTheme = () =>
-  `${
-    window.matchMedia('(prefers-color-scheme: dark)').matches === true
-      ? 'dark-palette'
-      : 'light-palette'
-  }`;
 
 function DefaultLayout({
   children,
   hasMessage,
+  examInProgress,
   fetchState,
   flashMessage,
   isOnline,
@@ -124,19 +133,34 @@ function DefaultLayout({
   removeFlashMessage,
   showFooter = true,
   isChallenge = false,
+  isDailyChallenge = false,
+  dailyChallengeParam,
+  usesMultifileEditor,
   block,
   superBlock,
-  theme = Themes.Default,
-  showCodeAlly,
+  theme,
   user,
+  pathname,
   fetchUser,
-  updateAllChallengesInfo
+  initializeTheme
 }: DefaultLayoutProps): JSX.Element {
   const { t } = useTranslation();
-  const { challengeEdges, certificateNodes } = useGetAllBlockIds();
+  const isMobileLayout = useMediaQuery({ maxWidth: MAX_MOBILE_WIDTH });
+  const isProject = /project$/.test(block as string);
+  const isRenderBreadcrumbOnMobile =
+    isMobileLayout && (isProject || !usesMultifileEditor);
+  const isRenderBreadcrumb = !isMobileLayout || isRenderBreadcrumbOnMobile;
+  const isExSmallViewportHeight = useMediaQuery({
+    maxHeight: EX_SMALL_VIEWPORT_HEIGHT
+  });
+
+  useEffect(() => {
+    initializeTheme();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     // componentDidMount
-    updateAllChallengesInfo({ challengeEdges, certificateNodes });
     if (!isSignedIn) {
       fetchUser();
     }
@@ -157,18 +181,18 @@ function DefaultLayout({
     return typeof isOnline === 'boolean' ? onlineStatusChange(isOnline) : null;
   };
 
-  const useSystemTheme = fetchState.complete && isSignedIn === false;
+  const isJapanese = clientLocale === 'japanese';
 
-  if (fetchState.pending) {
+  if (!fetchState.complete) {
     return <Loader fullScreen={true} messageDelay={5000} />;
   } else {
     return (
       <div className='page-wrapper'>
+        {envData.deploymentEnv === 'staging' &&
+          envData.environment === 'production' && <StagingWarningModal />}
         <Helmet
           bodyAttributes={{
-            class: useSystemTheme
-              ? getSystemTheme()
-              : `${theme === 'night' ? 'dark' : 'light'}-palette`
+            class: `${theme}-palette`
           }}
           meta={[
             {
@@ -199,6 +223,34 @@ function DefaultLayout({
             rel='preload'
             type='font/woff'
           />
+          {isJapanese && (
+            <link
+              as='font'
+              crossOrigin='anonymous'
+              href={jpSansRegularURL}
+              rel='preload'
+              type='font/woff'
+            />
+          )}
+          {isJapanese && (
+            <link
+              as='font'
+              crossOrigin='anonymous'
+              href={jpSansLightURL}
+              rel='preload'
+              type='font/woff'
+            />
+          )}
+          {isJapanese && (
+            <link
+              as='font'
+              crossOrigin='anonymous'
+              href={jpSansBoldURL}
+              rel='preload'
+              type='font/woff'
+            />
+          )}
+
           <link
             as='font'
             crossOrigin='anonymous'
@@ -225,6 +277,7 @@ function DefaultLayout({
           <Header
             fetchState={fetchState}
             user={user}
+            pathname={pathname}
             skipButtonText={t('learn.skip-to-content')}
           />
           <OfflineWarning
@@ -239,67 +292,34 @@ function DefaultLayout({
             />
           ) : null}
           <SignoutModal />
-          {isChallenge && !showCodeAlly && (
+          {isDailyChallenge ? (
             <div className='breadcrumbs-demo'>
-              <BreadCrumb
-                block={block as string}
-                superBlock={superBlock as string}
+              <DailyChallengeBreadCrumb
+                dailyChallengeParam={dailyChallengeParam}
               />
             </div>
+          ) : (
+            isChallenge &&
+            !isDailyChallenge &&
+            !examInProgress &&
+            (isRenderBreadcrumb ? (
+              <div className='breadcrumbs-demo'>
+                <BreadCrumb
+                  block={block as string}
+                  superBlock={superBlock as string}
+                />
+              </div>
+            ) : (
+              <Spacer size={isExSmallViewportHeight ? 'xxs' : 'xs'} />
+            ))
           )}
-          <div id='content-start' tabIndex={-1}>
-            {fetchState.complete && children}
-          </div>
+          {fetchState.complete && children}
         </div>
         {showFooter && <Footer />}
       </div>
     );
   }
 }
-
-// TODO: get challenge nodes directly rather than wrapped in edges
-const useGetAllBlockIds = () => {
-  const {
-    allChallengeNode: { edges: challengeEdges },
-    allCertificateNode: { nodes: certificateNodes }
-  }: {
-    allChallengeNode: AllChallengeNode;
-    allCertificateNode: { nodes: CertificateNode[] };
-  } = useStaticQuery(graphql`
-    query getBlockNode {
-      allChallengeNode(
-        sort: {
-          fields: [
-            challenge___superOrder
-            challenge___order
-            challenge___challengeOrder
-          ]
-        }
-      ) {
-        edges {
-          node {
-            challenge {
-              block
-              id
-            }
-          }
-        }
-      }
-      allCertificateNode {
-        nodes {
-          challenge {
-            certification
-            tests {
-              id
-            }
-          }
-        }
-      }
-    }
-  `);
-
-  return { challengeEdges, certificateNodes };
-};
 
 DefaultLayout.displayName = 'DefaultLayout';
 

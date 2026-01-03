@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Controlled as CodeMirror } from 'react-codemirror2';
+import CodeMirror from '@uiw/react-codemirror';
 import * as codemirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material.css';
@@ -14,15 +14,29 @@ import SaveChallenge from '../buttons/save-challenge';
 import './editor.css';
 import { API_LOCATION } from '../../utils/handle-request';
 
+// only includes superblocks whose folder names don't match their dashed names?
+export const superBlockNameMap: { [key: string]: string } = {
+  'responsive-web-design-22': '2022/responsive-web-design',
+  'javascript-algorithms-and-data-structures-22':
+    'javascript-algorithms-and-data-structures-v8',
+  'front-end-development': 'full-stack-developer'
+};
+
 const Editor = () => {
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState({
     name: '',
+    dashedName: '',
     fileData: ''
   });
-  const [input, setInput] = useState('');
-  const { superblock, block, challenge } = useParams();
+  const [stepContent, setStepContent] = useState('');
+  const { superblock = '', block = '', challenge = '' } = useParams();
+
+  const superblockUrl =
+    superblock in superBlockNameMap
+      ? superBlockNameMap[superblock]
+      : superblock;
 
   useEffect(() => {
     fetchData();
@@ -37,7 +51,7 @@ const Editor = () => {
         content => {
           setLoading(false);
           setItems(content);
-          setInput(content.fileData);
+          setStepContent(content.fileData);
         },
         (error: Error) => {
           setLoading(false);
@@ -46,12 +60,9 @@ const Editor = () => {
       );
   };
 
-  const handleChange = (
-    editor: codemirror.Editor,
-    data: codemirror.EditorChange,
-    value: string
-  ) => {
-    setInput(value);
+  const handleChange = (instance: codemirror.Editor) => {
+    const editedContent = instance.getValue();
+    setStepContent(editedContent);
   };
 
   if (error) {
@@ -67,8 +78,8 @@ const Editor = () => {
         {superblock} / {block}
       </span>
       <CodeMirror
-        value={input}
-        onBeforeChange={handleChange}
+        value={stepContent}
+        onChange={handleChange}
         options={{
           mode: {
             name: 'markdown',
@@ -83,10 +94,21 @@ const Editor = () => {
         superblock={superblock}
         block={block}
         challenge={challenge}
-        content={input}
+        content={stepContent}
       />
       <p>
         <Link to={`/${superblock}/${block}`}>Return to Block</Link>
+      </p>
+      <p>
+        <Link
+          to={`${import.meta.env.CHALLENGE_EDITOR_LEARN_CLIENT_LOCATION}/learn/${superblockUrl}/${block || ''}/${
+            items.dashedName
+          }`}
+          target='_blank'
+        >
+          View Live Version of the Challenge in your running development
+          environment
+        </Link>
       </p>
     </div>
   );

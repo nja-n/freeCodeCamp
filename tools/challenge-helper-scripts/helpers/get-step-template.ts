@@ -1,5 +1,5 @@
-import ObjectID from 'bson-objectid';
-import { insertErms } from './insert-erms';
+import { ObjectId } from 'bson';
+import { insertErms } from './insert-erms.js';
 
 // Builds a block
 function getCodeBlock(label: string, content?: string) {
@@ -20,9 +20,12 @@ ${content}`
 }
 
 type StepOptions = {
-  challengeId: ObjectID;
-  challengeSeeds: Record<string, ChallengeSeed>;
+  challengeId: ObjectId;
+  challengeSeeds: ChallengeSeed[];
   stepNum: number;
+  challengeType?: number;
+  isFirstChallenge?: boolean;
+  challengeLang?: string;
 };
 
 export interface ChallengeSeed {
@@ -37,10 +40,13 @@ export interface ChallengeSeed {
 function getStepTemplate({
   challengeId,
   challengeSeeds,
-  stepNum
+  stepNum,
+  challengeType,
+  isFirstChallenge = false,
+  challengeLang
 }: StepOptions): string {
-  const seedTexts = Object.values(challengeSeeds)
-    .map(({ contents, ext, editableRegionBoundaries }: ChallengeSeed) => {
+  const seedTexts = challengeSeeds
+    .map(({ contents, ext, editableRegionBoundaries }) => {
       let fullContents = contents;
       if (editableRegionBoundaries.length >= 2) {
         fullContents = insertErms(contents, editableRegionBoundaries);
@@ -49,14 +55,14 @@ function getStepTemplate({
     })
     .join('\n');
 
-  const seedHeads = Object.values(challengeSeeds)
-    .filter(({ head }: ChallengeSeed) => head)
-    .map(({ ext, head }: ChallengeSeed) => getCodeBlock(ext, head))
+  const seedHeads = challengeSeeds
+    .filter(({ head }) => head)
+    .map(({ ext, head }) => getCodeBlock(ext, head))
     .join('\n');
 
-  const seedTails = Object.values(challengeSeeds)
-    .filter(({ tail }: ChallengeSeed) => tail)
-    .map(({ ext, tail }: ChallengeSeed) => getCodeBlock(ext, tail))
+  const seedTails = challengeSeeds
+    .filter(({ tail }) => tail)
+    .map(({ ext, tail }) => getCodeBlock(ext, tail))
     .join('\n');
 
   const stepDescription = `step ${stepNum} instructions`;
@@ -64,12 +70,23 @@ function getStepTemplate({
   const seedHeadSection = getSeedSection(seedHeads, 'before-user-code');
   const seedTailSection = getSeedSection(seedTails, 'after-user-code');
 
+  const demoString = isFirstChallenge
+    ? `
+# demoType can either be 'onClick' or 'onLoad'. If the project or lab doesn't have a preview, delete the property
+demoType: onClick`
+    : '';
+
+  const langString = challengeLang
+    ? `
+lang: ${challengeLang}`
+    : '';
+
   return (
     `---
 id: ${challengeId.toString()}
 title: Step ${stepNum}
-challengeType: 0
-dashedName: step-${stepNum}
+challengeType: ${challengeType ?? 'placeholder'}
+dashedName: step-${stepNum}${langString}${demoString}
 ---
 
 # --description--

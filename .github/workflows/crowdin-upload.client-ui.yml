@@ -2,8 +2,8 @@ name: i18n - Upload Client UI
 on:
   workflow_dispatch:
   schedule:
-    # runs every weekday at 11:15 AM UTC
-    - cron: '15 11 * * 1-5'
+    # runs every weekday at 7:15 AM UTC
+    - cron: '15 7 * * 1-5'
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -14,11 +14,11 @@ env:
 jobs:
   i18n-upload-client-ui-files:
     name: Client
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Generate Crowdin Config
         uses: freecodecamp/crowdin-action@main

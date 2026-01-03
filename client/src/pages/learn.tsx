@@ -1,24 +1,22 @@
-import { Grid, Row, Col } from '@freecodecamp/react-bootstrap';
 import { graphql } from 'gatsby';
 import React from 'react';
 import Helmet from 'react-helmet';
 import { useTranslation } from 'react-i18next';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { bindActionCreators, Dispatch } from 'redux';
+import { Container, Col, Row, Spacer } from '@freecodecamp/ui';
 
 import Intro from '../components/Intro';
 import Map from '../components/Map';
-import { Spacer } from '../components/helpers';
 import LearnLayout from '../components/layouts/learn';
-import { defaultDonation } from '../../../config/donation-settings';
 import {
   isSignedInSelector,
   userSelector,
   userFetchStateSelector
 } from '../redux/selectors';
 
-import { executeGA } from '../redux/actions';
+import callGA from '../analytics/call-ga';
+import { useClaimableCertsNotification } from '../components/helpers/use-claimable-certs-notification';
 
 interface FetchState {
   pending: boolean;
@@ -26,18 +24,18 @@ interface FetchState {
   errored: boolean;
 }
 
-interface User {
+type MaybeUser = {
   name: string;
   username: string;
   completedChallengeCount: number;
   isDonating: boolean;
-}
+} | null;
 
 const mapStateToProps = createSelector(
   userFetchStateSelector,
   isSignedInSelector,
   userSelector,
-  (fetchState: FetchState, isSignedIn: boolean, user: User) => ({
+  (fetchState: FetchState, isSignedIn: boolean, user: MaybeUser) => ({
     fetchState,
     isSignedIn,
     user
@@ -52,47 +50,41 @@ interface LearnPageProps {
   isSignedIn: boolean;
   fetchState: FetchState;
   state: Record<string, unknown>;
-  user: User;
-  executeGA: (payload: Record<string, unknown>) => void;
+  user: MaybeUser;
   data: {
     challengeNode: {
       challenge: {
         fields: Slug;
       };
-    };
+    } | null;
   };
 }
 
-const mapDispatchToProps = (dispatch: Dispatch) =>
-  bindActionCreators({ executeGA }, dispatch);
+const EMPTY_USER = { name: '', completedChallengeCount: 0, isDonating: false };
 
 function LearnPage({
   isSignedIn,
-  executeGA,
   fetchState: { pending, complete },
-  user: { name = '', completedChallengeCount = 0, isDonating = false },
-  data: {
-    challengeNode: {
-      challenge: {
-        fields: { slug }
-      }
-    }
-  }
+  user,
+  data: { challengeNode }
 }: LearnPageProps) {
-  const { t } = useTranslation();
+  const { name, completedChallengeCount, isDonating } = user ?? EMPTY_USER;
 
-  const onDonationAlertClick = () => {
-    executeGA({
+  const { t } = useTranslation();
+  useClaimableCertsNotification();
+
+  const slug = challengeNode?.challenge?.fields?.slug || '';
+
+  const onLearnDonationAlertClick = () => {
+    callGA({
       event: 'donation_related',
-      action: `Learn Donation Alert Click`,
-      duration: defaultDonation.donationDuration,
-      amount: defaultDonation.donationAmount
+      action: `Learn Donation Alert Click`
     });
   };
   return (
     <LearnLayout>
       <Helmet title={t('metaTags:title')} />
-      <Grid>
+      <Container>
         <Row>
           <Col md={8} mdOffset={2} sm={10} smOffset={1} xs={12}>
             <Intro
@@ -102,24 +94,24 @@ function LearnPage({
               name={name}
               pending={pending}
               slug={slug}
-              onDonationAlertClick={onDonationAlertClick}
+              onLearnDonationAlertClick={onLearnDonationAlertClick}
               isDonating={isDonating}
             />
             <Map />
-            <Spacer size='large' />
+            <Spacer size='l' />
           </Col>
         </Row>
-      </Grid>
+      </Container>
     </LearnLayout>
   );
 }
 
 LearnPage.displayName = 'LearnPage';
 
-export default connect(mapStateToProps, mapDispatchToProps)(LearnPage);
+export default connect(mapStateToProps)(LearnPage);
 
 export const query = graphql`
-  query FirstChallenge {
+  query LearnPageQuery {
     challengeNode(
       challenge: {
         superOrder: { eq: 0 }

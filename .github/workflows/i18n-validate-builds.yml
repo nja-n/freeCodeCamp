@@ -4,29 +4,38 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: Validate i18n Builds
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [22]
 
     steps:
-      - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          version: 8
+          submodules: 'recursive'
+
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
 
       - name: Set freeCodeCamp Environment Variables
-        run: cp sample.env .env
+        run: |
+          cp sample.env .env
 
       - name: Install Dependencies
         run: pnpm install

@@ -2,6 +2,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { useStaticQuery } from 'gatsby';
 import React from 'react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+
+vi.mock('../../../utils/get-words');
 
 import { render, screen } from '../../../../utils/test-utils';
 import { createStore } from '../../../redux/create-store';
@@ -62,22 +65,6 @@ describe('<TimeLine />', () => {
     expect(showViewButton).toHaveAttribute(
       'href',
       'https://github.com/freeCodeCamp/freeCodeCamp'
-    );
-  });
-
-  it('Render button when both githubLink and solution is present', () => {
-    // @ts-expect-error
-    render(<TimeLine {...propsForOnlySolution} />, store);
-
-    const menuItems = screen.getAllByRole('menuitem');
-    expect(menuItems).toHaveLength(2);
-    expect(menuItems[0]).toHaveAttribute(
-      'href',
-      'https://github.com/freeCodeCamp/freeCodeCamp1'
-    );
-    expect(menuItems[1]).toHaveAttribute(
-      'href',
-      'https://github.com/freeCodeCamp/freeCodeCamp2'
     );
   });
 

@@ -1,3 +1,4 @@
+/* eslint-disable filenames-simple/naming-convention */
 require('dotenv').config({ path: '../.env' });
 const config = {
   presets: [
@@ -35,29 +36,29 @@ const config = {
       }
     ],
     [
-      'babel-plugin-transform-imports',
-      {
-        'react-bootstrap': {
-          transform: 'react-bootstrap/lib/${member}',
-          preventFullImport: true
-        }
-      }
-    ],
-    [
       'prismjs',
       {
         languages: [
+          'bash',
+          'c',
           'clike',
+          'cpp',
           'css',
+          'csharp',
           'html',
           'javascript',
+          'json',
+          'jsx',
           'markup',
           'mathml',
           'pug',
           'python',
+          'scss',
+          'sass',
           'sql',
           'svg',
           'typescript',
+          'tsx',
           'xml'
         ],
         theme: 'default',
@@ -67,10 +68,4 @@ const config = {
     ]
   ]
 };
-if (
-  process.env.FREECODECAMP_NODE_ENV === 'development' &&
-  process.env.CODESEE === 'true'
-) {
-  config.plugins.push(['@codesee/instrument', { hosted: true }]);
-}
 module.exports = config;

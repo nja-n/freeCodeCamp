@@ -1,21 +1,18 @@
-name: CI - Node.js Test Current
-env:
-  NODE_OPTIONS: '--max_old_space_size=6144'
+name: CI - Node.js
 
 on:
-  # Run on push events, but only for the below branches
   push:
     branches:
       - 'main'
       - 'prod-**'
-  # Run on pull requests, but only for the below targets
   pull_request:
     branches:
       - 'main'
-      - 'next-**'
-  # Run on Merge Queue
-  merge_group:
-    types: [checks_requested]
+      - 'temp-**' # Temporary branches allowed on Upstream
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: ${{ !contains(github.ref, 'main') && !contains(github.ref, 'prod-') }}
 
 permissions:
   contents: read
@@ -23,15 +20,17 @@ permissions:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [22]
       fail-fast: false
 
     steps:
-      - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          submodules: 'recursive'
 
       - name: Check number of lockfiles
         run: |
@@ -41,59 +40,98 @@ jobs:
             exit 1
           fi
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
 
       - name: Set Environment variables
         run: |
           cp sample.env .env
-          echo 'SHOW_NEW_CURRICULUM=true' >> .env
           cat .env
+
+      - name: Install node_modules
+        run: pnpm install
+
+      - name: Check formatting
+        run: |
+          pnpm prettier --check . || [ $? -eq 1 ] && printf "\nTip: Run 'pnpm run format' in your terminal to fix this.\n\n"
 
       # The two prefixed installs are for the client update which are not,
       # currently, built as workspaces.
       - name: Lint Source Files
         run: |
           echo pnpm version $(pnpm -v)
+          pnpm lint
+
+  # DONT REMOVE THIS JOB.
+  # TODO: Refactor and use re-usable workflow and shared artifacts
+  build:
+    name: Build
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        node-version: [22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          submodules: 'recursive'
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
+
+      - name: Set freeCodeCamp Environment Variables
+        run: |
+          cp sample.env .env
+
+      - name: Install and Build
+        run: |
           pnpm install
-          pnpm run create:config
-          npm i --prefix=curriculum-server
-          npm i --prefix=web
-          pnpm run build:curriculum
-          pnpm run lint
+          pnpm run build
 
   test:
     name: Test
-    needs: lint
-    runs-on: ubuntu-20.04
+    needs: build
+    runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x]
+        node-version: [22]
 
     steps:
-      - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          version: 8
+          submodules: 'recursive'
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
 
       - name: Set Environment variables
         run: |
@@ -101,46 +139,45 @@ jobs:
           cat .env
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@d26215f71b2ce60420a2a3776a25893d11a65f85 # 1.9.0
-        with:
-          mongodb-version: 6.0
-          mongodb-replica-set: test-rs
-          mongodb-port: 27017
+        run: docker compose -f docker/docker-compose.yml up -d
 
       - name: Install Dependencies
         run: |
           echo pnpm version $(pnpm -v)
           pnpm install
-          pnpm run create:config
-          pnpm run build:curriculum
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm -F=curriculum install-puppeteer
 
       - name: Run Tests
         run: pnpm test
 
   test-upcoming:
-    name: Test Upcoming Changes
-    needs: lint
-    runs-on: ubuntu-20.04
+    name: Test - Upcoming Changes
+    needs: build
+    runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x]
+        node-version: [22]
 
     steps:
-      - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          version: 8
+          submodules: 'recursive'
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
 
       - name: Set Environment variables
         run: |
@@ -149,47 +186,47 @@ jobs:
           cat .env
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@d26215f71b2ce60420a2a3776a25893d11a65f85 # 1.9.0
-        with:
-          mongodb-version: 6.0
-          mongodb-replica-set: test-rs
-          mongodb-port: 27017
+        run: docker compose -f docker/docker-compose.yml up -d
 
       - name: Install Dependencies
         run: |
           echo pnpm version $(pnpm -v)
           pnpm install
-          pnpm run create:config
-          pnpm run build:curriculum
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm -F=curriculum install-puppeteer
 
       - name: Run Tests
         run: pnpm test
 
   test-localization:
-    name: Localize
-    needs: lint
-    runs-on: ubuntu-20.04
+    name: Test - i18n
+    needs: build
+    runs-on: ubuntu-24.04
+    if: github.event.pull_request.user.login == 'camperbot' && github.head_ref == 'chore/update-i18n-curriculum-submodule'
 
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x]
-        locale: [chinese, espanol]
+        node-version: [22]
+        locale: [portuguese, italian]
 
     steps:
-      - name: Checkout Source Files
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          version: 8
+          submodules: 'recursive'
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        id: pnpm-install
+        with:
+          run_install: false
 
       - name: Set Environment variables
         run: |
@@ -197,9 +234,9 @@ jobs:
           cat .env
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@d26215f71b2ce60420a2a3776a25893d11a65f85 # 1.9.0
+        uses: supercharge/mongodb-github-action@315db7fe45ac2880b7758f1933e6e5d59afd5e94 # 1.12.1
         with:
-          mongodb-version: 6.0
+          mongodb-version: 8.0
           mongodb-replica-set: test-rs
           mongodb-port: 27017
 
@@ -210,37 +247,21 @@ jobs:
         run: |
           echo pnpm version $(pnpm -v)
           pnpm install
-          pnpm run create:config
-          pnpm run build:curriculum
+
+      # DONT REMOVE THIS STEP.
+      # TODO: Refactor and use re-usable workflow and shared artifacts
+      - name: Build Client in ${{ matrix.locale }}
+        env:
+          CURRICULUM_LOCALE: ${{ matrix.locale }}
+          CLIENT_LOCALE: ${{ matrix.locale }}
+        run: |
+          pnpm run build
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm -F=curriculum install-puppeteer
 
       - name: Run Tests
         env:
           CURRICULUM_LOCALE: ${{ matrix.locale }}
           CLIENT_LOCALE: ${{ matrix.locale }}
         run: pnpm test
-
-  failure-comment:
-    name: Comment on i18n Failure
-    needs: ['test', 'test-localization']
-    runs-on: ubuntu-20.04
-    if: ${{ always() && needs.test.result == 'success' && needs.test-localization.result == 'failure' }}
-    steps:
-      - uses: actions/github-script@98814c53be79b1d30f795b907e553d8679345975 # v6
-        with:
-          github-token: ${{ secrets.CAMPERBOT_NO_TRANSLATE }}
-          script: |
-            const isDev = await github.rest.teams.getMembershipForUserInOrg({
-              org: "freeCodeCamp",
-              team_slug: "dev-team",
-              username: context.payload.pull_request.user.login
-            }).catch(() => ({status: 404}));
-            if (context.payload.pull_request.user.login !== "camperbot" && isDev.status !== 200) {
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: "Hi,\n\nIt looks like the localization tests have failed. This is expected when there are significant curriculum changes in the English version.\n\nThis could mean a Crowdin sync is required to address the scenario. Please check with our staff developer team, either on [Discord](https://discord.gg/KVUmVXA) or our [forums](https://forum.freecodecamp.org). They will confirm and take over helping you through the PR.\n\nThanks for your understanding and contribution."
-              })
-            } else if (isDev.status === 200) {
-              core.setFailed('This PR appears to touch translated curriculum files, but since you are on the dev team there is no message.');
-            }

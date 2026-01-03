@@ -1,19 +1,18 @@
-import { Button, Form } from '@freecodecamp/react-bootstrap';
 import React, { useState } from 'react';
 import { useTranslation, withTranslation } from 'react-i18next';
 import { connect } from 'react-redux';
 import { bindActionCreators } from 'redux';
 import type { Dispatch } from 'redux';
 import { createSelector } from 'reselect';
+import { Button, Spacer } from '@freecodecamp/ui';
 
 import { userSelector } from '../../redux/selectors';
 import type { ProfileUI } from '../../redux/prop-types';
 import { submitProfileUI } from '../../redux/settings/actions';
 
 import FullWidthRow from '../helpers/full-width-row';
-import Spacer from '../helpers/spacer';
 import SectionHeader from './section-header';
-import ToggleSetting from './toggle-setting';
+import ToggleRadioSetting from './toggle-radio-setting';
 
 const mapStateToProps = createSelector(userSelector, user => ({
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -46,6 +45,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
 
   function submitNewProfileSettings(e: React.FormEvent) {
     e.preventDefault();
+    if (!madeChanges) return;
     submitProfileUI(privacyValues);
     setMadeChanges(false);
   }
@@ -55,9 +55,9 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
       <SectionHeader>{t('settings.headings.privacy')}</SectionHeader>
       <FullWidthRow>
         <p>{t('settings.privacy')}</p>
-        <Form inline={true} onSubmit={submitNewProfileSettings}>
+        <form onSubmit={submitNewProfileSettings}>
           <div role='group' aria-label={t('settings.headings.privacy')}>
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-profile')}
               explain={t('settings.disabled')}
               flag={privacyValues['isLocked']}
@@ -66,7 +66,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('isLocked')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-name')}
               explain={t('settings.private-name')}
               flag={!privacyValues['showName']}
@@ -75,7 +75,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showName')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-location')}
               flag={!privacyValues['showLocation']}
               flagName='showLocation'
@@ -83,7 +83,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showLocation')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-about')}
               flag={!privacyValues['showAbout']}
               flagName='showAbout'
@@ -91,7 +91,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showAbout')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-points')}
               flag={!privacyValues['showPoints']}
               flagName='showPoints'
@@ -99,7 +99,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showPoints')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-heatmap')}
               flag={!privacyValues['showHeatMap']}
               flagName='showHeatMap'
@@ -107,7 +107,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showHeatMap')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-certs')}
               explain={t('settings.disabled')}
               flag={!privacyValues['showCerts']}
@@ -116,7 +116,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showCerts')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-portfolio')}
               flag={!privacyValues['showPortfolio']}
               flagName='showPortfolio'
@@ -124,7 +124,7 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showPortfolio')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-timeline')}
               explain={t('settings.disabled')}
               flag={!privacyValues['showTimeLine']}
@@ -133,10 +133,10 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showTimeLine')}
             />
-            <ToggleSetting
+            <ToggleRadioSetting
               action={t('settings.labels.my-donations')}
               flag={!privacyValues['showDonation']}
-              flagName='showPortfolio'
+              flagName='showDonation'
               offLabel={t('buttons.public')}
               onLabel={t('buttons.private')}
               toggleFlag={toggleFlag('showDonation')}
@@ -144,25 +144,24 @@ function PrivacySettings({ submitProfileUI, user }: PrivacyProps): JSX.Element {
           </div>
           <Button
             type='submit'
-            bsSize='lg'
-            bsStyle='primary'
-            data-cy='save-privacy-settings'
+            size='large'
+            variant='primary'
             block={true}
-            aria-disabled={!madeChanges}
+            disabled={!madeChanges}
             {...(!madeChanges && { tabIndex: -1 })}
           >
             {t('buttons.save')}{' '}
             <span className='sr-only'>{t('settings.headings.privacy')}</span>
           </Button>
-        </Form>
+        </form>
       </FullWidthRow>
       <FullWidthRow>
-        <Spacer size='medium' />
+        <Spacer size='m' />
         <p>{t('settings.data')}</p>
         <Button
           block={true}
-          bsSize='lg'
-          bsStyle='primary'
+          size='large'
+          variant='primary'
           download={`${user.username}.json`}
           href={`data:text/json;charset=utf-8,${encodeURIComponent(
             JSON.stringify(user)

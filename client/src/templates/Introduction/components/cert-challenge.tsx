@@ -1,29 +1,29 @@
-import { Button } from '@freecodecamp/react-bootstrap';
-import { navigate } from 'gatsby-link';
-import React, { useState, useEffect, MouseEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation, withTranslation } from 'react-i18next';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
+import { Button } from '@freecodecamp/ui';
+
 import {
-  certSlugTypeMap,
-  superBlockCertTypeMap,
-  SuperBlocks
-} from '../../../../../config/certification-settings';
-import { createFlashMessage } from '../../../components/Flash/redux';
-import { FlashMessages } from '../../../components/Flash/redux/flash-messages';
+  type Certification,
+  superBlockToCertMap
+} from '../../../../../shared-dist/config/certification-settings';
+import { SuperBlocks } from '../../../../../shared-dist/config/curriculum';
+
 import {
   isSignedInSelector,
-  userFetchStateSelector,
-  currentCertsSelector
+  userFetchStateSelector
 } from '../../../redux/selectors';
-import { User, Steps } from '../../../redux/prop-types';
-import { verifyCert } from '../../../redux/settings/actions';
-import { certMap } from '../../../resources/cert-and-project-map';
+import { User } from '../../../redux/prop-types';
+import {
+  type CertTitle,
+  liveCerts
+} from '../../../../config/cert-and-project-map';
+import { getCertifications } from '../../../components/profile/components/utils/certification';
 
 interface CertChallengeProps {
   // TODO: create enum/reuse SuperBlocks enum somehow
   certification: string;
-  createFlashMessage: typeof createFlashMessage;
   fetchState: {
     pending: boolean;
     complete: boolean;
@@ -31,56 +31,38 @@ interface CertChallengeProps {
     error: null | string;
   };
   isSignedIn: boolean;
-  currentCerts: Steps['currentCerts'];
   superBlock: SuperBlocks;
-  title: (typeof certMap)[number]['title'];
+  title: CertTitle;
   user: User;
-  verifyCert: typeof verifyCert;
 }
-
-const honestyInfoMessage = {
-  type: 'info',
-  message: FlashMessages.HonestFirst
-};
 
 const mapStateToProps = (state: unknown) => {
   return createSelector(
-    currentCertsSelector,
     userFetchStateSelector,
     isSignedInSelector,
-    (
-      currentCerts,
-      fetchState: CertChallengeProps['fetchState'],
-      isSignedIn
-    ) => ({
-      currentCerts,
+    (fetchState: CertChallengeProps['fetchState'], isSignedIn) => ({
       fetchState,
       isSignedIn
     })
   )(state as Record<string, unknown>);
 };
 
-const mapDispatchToProps = {
-  createFlashMessage,
-  verifyCert
-};
-
 const CertChallenge = ({
-  createFlashMessage,
-  currentCerts,
   superBlock,
-  verifyCert,
   title,
   fetchState,
   isSignedIn,
-  user: { isHonest, username }
+  user
 }: CertChallengeProps): JSX.Element => {
   const { t } = useTranslation();
-  const [isCertified, setIsCertified] = useState(false);
   const [userLoaded, setUserLoaded] = useState(false);
 
-  // @ts-expect-error Typescript is confused
-  const certSlug = certMap.find(x => x.title === title).certSlug;
+  const { currentCerts, legacyCerts } = getCertifications(user);
+  const { username } = user;
+
+  const cert = liveCerts.find(x => x.title === title);
+  if (!cert) throw Error(`Certification ${title} not found`);
+  const certSlug = cert.certSlug;
 
   useEffect(() => {
     const { pending, complete } = fetchState;
@@ -90,42 +72,23 @@ const CertChallenge = ({
     }
   }, [fetchState]);
 
-  const certSlugTypeMapTyped: { [key: string]: string } = certSlugTypeMap;
-  const superBlockCertTypeMapTyped: { [key: string]: string } =
-    superBlockCertTypeMap;
+  const allCerts = [...currentCerts, ...legacyCerts];
 
-  useEffect(() => {
-    setIsCertified(
-      currentCerts?.find(
-        (cert: { certSlug: string }) =>
-          certSlugTypeMapTyped[cert.certSlug] ===
-          superBlockCertTypeMapTyped[superBlock]
-      )?.show ?? false
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCerts]);
+  const isCertified =
+    allCerts.find(
+      (cert: { certSlug: Certification }) =>
+        cert.certSlug === superBlockToCertMap[superBlock]
+    )?.show ?? false;
 
   const certLocation = `/certification/${username}/${certSlug}`;
 
-  const createClickHandler =
-    (certSlug: string | undefined) => (e: MouseEvent<HTMLAnchorElement>) => {
-      e.preventDefault();
-      if (isCertified) {
-        return navigate(certLocation);
-      }
-      return isHonest
-        ? verifyCert(certSlug)
-        : createFlashMessage(honestyInfoMessage);
-    };
   return (
-    <div className='block'>
+    <div>
       {isSignedIn && (
         <Button
           block={true}
-          bsStyle='primary'
-          className='cert-btn'
-          href={isCertified ? certLocation : `/settings#certification-settings`}
-          onClick={() => (isCertified ? createClickHandler(certSlug) : false)}
+          variant='primary'
+          href={isCertified ? certLocation : `/settings#cert-${certSlug}`}
         >
           {isCertified && userLoaded
             ? t('buttons.show-cert')
@@ -139,7 +102,4 @@ const CertChallenge = ({
 
 CertChallenge.displayName = 'CertChallenge';
 
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(withTranslation()(CertChallenge));
+export default connect(mapStateToProps)(withTranslation()(CertChallenge));

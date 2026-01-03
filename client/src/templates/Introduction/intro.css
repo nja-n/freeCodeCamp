@@ -2,13 +2,79 @@
   font-size: 1.17rem;
 }
 
-.super-block-intro-page .alert p {
-  font-size: inherit;
-}
-
 .big-subheading {
   font-size: 2rem;
   overflow-wrap: break-word;
+}
+
+.hide-scrollable-anchor {
+  display: block;
+  max-height: 0px;
+}
+
+.block-label {
+  align-self: center;
+  height: fit-content;
+  padding: 1px 6px 2px;
+  font-size: 0.85rem;
+  border: 1px solid;
+  position: relative;
+  top: 1px;
+  word-break: keep-all;
+}
+
+.block-header:hover .block-label {
+  background-color: var(--tertiary-background);
+}
+
+.block-label-lecture {
+  border-color: var(--yellow-color);
+  color: var(--yellow-color);
+}
+
+.block-label-workshop {
+  border-color: var(--highlight-color);
+  color: var(--highlight-color);
+}
+
+.block-label-lab {
+  border-color: var(--success-color);
+  color: var(--success-color);
+}
+
+.block-label-review {
+  border-color: var(--purple-color);
+  color: var(--purple-color);
+}
+
+.block-label-quiz {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+.block-label-exam {
+  border-color: var(--quaternary-color);
+  color: var(--quaternary-color);
+}
+
+.block-label-cert-project {
+  border-color: var(--love-color);
+  color: var(--love-color);
+}
+
+.block-label-warm-up {
+  border-color: var(--yellow-color);
+  color: var(--yellow-color);
+}
+
+.block-label-learn {
+  border-color: var(--highlight-color);
+  color: var(--highlight-color);
+}
+
+.block-label-practice {
+  border-color: var(--success-color);
+  color: var(--success-color);
 }
 
 .block-header {
@@ -23,9 +89,7 @@
   padding: 25px 15px 10px;
 }
 
-.big-block-title:hover,
-.big-block-title:focus,
-.big-block-title:active {
+.block-header .big-block-title:is(:hover, :focus, :active) {
   background-color: var(--primary-background);
 }
 
@@ -42,16 +106,13 @@ a.cert-tag:active {
 }
 
 .block-grid-title {
+  font-size: 1rem;
   margin: 0;
   overflow-wrap: break-word;
 }
 
 .block-grid .challenge-jump-link {
   margin: 0 25px 25px;
-}
-
-.block-grid .challenge-jump-link a:focus:not(:focus-visible) {
-  outline: none;
 }
 
 .block-title-translation-cta {
@@ -131,6 +192,7 @@ button.map-title {
 }
 
 .map-challenge-wrap > a,
+.map-dialogue-wrap > a,
 .map-project-wrap > a {
   display: flex;
   gap: 7px;
@@ -167,7 +229,7 @@ button.map-title {
   background-color: var(--tertiary-background);
 }
 
-.block-ui .block {
+.block-ui div.block {
   background: var(--primary-background);
 }
 
@@ -235,30 +297,13 @@ button.map-title {
 .map-challenge-title {
   display: flex;
   align-items: center;
-  width: 100%;
   font-size: 1.13rem;
 }
 
 .map-challenge-title a {
-  width: 100%;
   padding: 10px 15px;
+  width: 100%;
   align-items: center;
-}
-
-.map-challenges-grid .map-challenge-title a {
-  width: 3.4rem;
-  height: 3.4rem;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0;
-}
-
-.map-challenges-grid .map-challenge-title a:focus {
-  outline-offset: -2px;
-}
-
-.map-challenges-grid .map-challenge-title a:focus:not(:focus-visible) {
-  outline: none;
 }
 
 .map-challenges-grid {
@@ -266,18 +311,40 @@ button.map-title {
   grid-template-columns: repeat(auto-fill, 3.4rem);
   grid-gap: 3px;
   justify-content: space-between;
-  margin: 0 auto;
+  margin: 0 auto 18px;
   width: calc(100% - 50px);
+  list-style: none;
 }
-.map-challenge-title-grid {
-  flex: 0 1 60px;
+
+.map-challenges-grid .map-challenge-title a:focus {
+  outline-offset: 1px;
 }
-.map-challenges-grid .map-project-wrap {
-  flex: 1 1 100px;
+
+.map-challenges-grid .map-challenge-wrap {
+  margin: 6px 0;
+  max-width: 3.4rem;
 }
-.map-challenge-title-grid a.map-grid-item {
-  margin: 5px 0;
+
+.map-challenge-wrap a.map-grid-item {
   justify-content: center;
+  align-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  min-width: 24px;
+  min-height: 24px;
+  border: 1px dashed var(--background-quaternary);
+}
+
+.map-dialogue-wrap {
+  grid-column: 1 / -1;
+  margin: 0 auto 6px;
+  width: 100%;
+}
+
+.map-dialogue-wrap a {
+  align-items: center;
+  min-height: 50px;
+  padding: 10px 15px;
 }
 
 .block-description {
@@ -288,14 +355,18 @@ button.map-title {
   margin-bottom: 0;
 }
 
-.challenge-completed {
+.block-grid .block-description {
+  padding: 18px 15px;
+}
+
+a.map-grid-item.challenge-completed {
   background: var(--highlight-background);
   position: relative;
+  border: 1px solid var(--primary-color);
 }
 
 .challenge-completed span {
-  font-weight: 700;
-  font-size: 1.3rem;
+  font-weight: 900;
   margin-top: -0.05rem;
 }
 
@@ -350,12 +421,19 @@ button.map-title {
   margin-top: 1.45rem;
 }
 
-.intro-toc .list-group-item {
-  margin: 5px auto;
+.intro-toc {
+  margin-bottom: 20px;
+  padding-left: 0;
+  list-style-type: none;
 }
 
-.intro-toc .list-group-item:hover {
-  background-color: var(--secondary-background);
+.intro-toc li {
+  margin: 5px auto;
+  padding: 10px 15px;
+}
+
+.intro-toc li:hover {
+  background-color: var(--tertiary-background);
 }
 
 .intro-toc a:hover {
@@ -416,12 +494,6 @@ button.map-title {
   padding: 25px;
 }
 
-/* this margin is used to center the element.
-ToDo: find out why, and remove the need for it */
-.block-grid .map-title > svg {
-  margin-bottom: 4px;
-}
-
 .title-wrapper {
   display: flex;
   flex-direction: row;
@@ -438,27 +510,16 @@ ToDo: find out why, and remove the need for it */
 .block-grid .progress-wrapper {
   width: 100%;
   text-align: left;
-  font-family: var(--font-family-sans-serif);
   display: flex;
   align-items: center;
   margin-top: 18px;
   margin-bottom: 14px;
 }
 
-.block-grid .progress-wrapper span {
-  color: var(--quaternary-color);
-}
-
-.block-grid .progress {
-  height: 15px;
-  background-color: var(--secondary-background);
-  margin: 0 10px;
+.block-grid .progress-wrapper > div {
+  position: relative;
   width: 80%;
-  border-radius: 0;
-}
-
-.block-grid .progress-bar {
-  background-color: var(--blue-mid);
+  margin-inline-end: 0.25em;
 }
 
 .tags-wrapper {
@@ -468,4 +529,57 @@ ToDo: find out why, and remove the need for it */
 
 .grid-project-block {
   margin-bottom: 50px;
+  padding: 18px 15px;
+  position: relative;
+}
+
+.grid-project-block-no-margin {
+  margin-bottom: 0;
+}
+
+.block-grid.grid-project-block:hover {
+  cursor: pointer;
+  background: var(--tertiary-background);
+}
+
+.grid-project-block a.block-header {
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* make entire certification card clickable */
+.grid-project-block a.block-header::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.grid-project-block .tags-wrapper a {
+  position: relative;
+  z-index: 100;
+}
+
+.grid-project-block:hover:has(.tags-wrapper a:hover) {
+  background: var(--primary-background);
+}
+
+.challenge-grid-block .challenge-grid-block-panel {
+  /* Add some space between panel content and the top edge of the container.
+    The value (18px) is the same value `.map-challenges-grid` uses
+    to create space between the grid and the bottom edge of the container. */
+  margin-top: 18px;
+}
+
+.chapter-button .dropdown-icon,
+.module-button .dropdown-icon {
+  width: 14px;
+  height: 14px;
 }

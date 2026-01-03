@@ -11,8 +11,9 @@ i18n
       escapeValue: false
     },
     lng: 'en',
-    ns: ['translations'],
-    resources: { en: { translations: {} } }
+    ns: ['intro', 'translations'],
+    resources: { en: { intro: {}, translations: {} } },
+    returnNull: false
   })
   .catch((error: Error) => {
     throw Error(error.message);

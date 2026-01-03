@@ -1,16 +1,14 @@
 import React from 'react';
-import { Button, Modal } from '@freecodecamp/react-bootstrap';
 import { bindActionCreators, Dispatch, AnyAction } from 'redux';
 import { createSelector } from 'reselect';
 import { connect } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { Button, Modal, Spacer } from '@freecodecamp/ui';
 
-import { Spacer } from '../helpers';
-import { hardGoTo as navigate, closeSignoutModal } from '../../redux/actions';
+import { closeSignoutModal } from '../../redux/actions';
 import { isSignoutModalOpenSelector } from '../../redux/selectors';
-import { apiLocation } from '../../../../config/env.json';
-
-import './signout-modal.css';
+import { apiLocation } from '../../../config/env.json';
+import callGA from '../../analytics/call-ga';
 
 const mapStateToProps = createSelector(
   isSignoutModalOpenSelector,
@@ -22,20 +20,31 @@ const mapStateToProps = createSelector(
 const mapDispatchToProps = (dispatch: Dispatch<AnyAction>) =>
   bindActionCreators(
     {
-      navigate,
       closeSignoutModal
     },
     dispatch
   );
 
 type SignoutModalProps = {
-  navigate: (path: string) => void;
   closeSignoutModal: () => void;
   show: boolean;
 };
 
+export const pathAfterSignout = (currentPath: string): string => {
+  // These pages try to sign in the user automatically if they are signed out,
+  // so, to respect the user's intention to sign out, we redirect them to /learn
+  // instead.
+  const redirectedPaths = ['/settings', '/update-email'];
+  const allPaths = [
+    ...redirectedPaths,
+    ...redirectedPaths.map(path => `${path}/`)
+  ];
+
+  return allPaths.some(path => currentPath === path) ? '/learn' : currentPath;
+};
+
 function SignoutModal(props: SignoutModalProps): JSX.Element {
-  const { show, closeSignoutModal, navigate } = props;
+  const { show, closeSignoutModal } = props;
   const { t } = useTranslation();
 
   const handleModalHide = () => {
@@ -44,24 +53,22 @@ function SignoutModal(props: SignoutModalProps): JSX.Element {
 
   const handleSignout = () => {
     closeSignoutModal();
-    navigate(`${apiLocation}/signout`);
+    callGA({ event: 'sign_out', user_id: undefined });
+    const redirect = () => {
+      window.location.pathname = pathAfterSignout(window.location.pathname);
+    };
+    void fetch(`${apiLocation}/signout`, {
+      method: 'GET',
+      credentials: 'include'
+    })
+      .then(redirect)
+      .catch(redirect);
   };
 
   return (
-    <Modal
-      aria-labelledby='modal-title'
-      backdrop={true}
-      bsSize='lg'
-      className='text-center'
-      keyboard={true}
-      onHide={handleModalHide}
-      onClose={handleModalHide}
-      show={show}
-    >
-      <Modal.Header closeButton={true}>
-        <Modal.Title id='modal-title' bsSize='lg'>
-          <span style={{ fontWeight: 'bold' }}>{t('signout.heading')}</span>
-        </Modal.Title>
+    <Modal size='large' variant='danger' open={show} onClose={handleModalHide}>
+      <Modal.Header showCloseButton={true} closeButtonClassNames='close'>
+        {t('signout.heading')}
       </Modal.Header>
       <Modal.Body>
         <p>
@@ -71,22 +78,18 @@ function SignoutModal(props: SignoutModalProps): JSX.Element {
         <hr />
         <Button
           block={true}
-          bsStyle='primary'
+          variant='primary'
           data-test-label='cancel-signout'
-          className='btn-invert'
           onClick={handleModalHide}
-          type='button'
         >
           {t('signout.nevermind')}
         </Button>
-        <Spacer size='small' />
+        <Spacer size='xs' />
         <Button
           block={true}
-          bsStyle='danger'
+          variant='danger'
           data-test-label='signout'
-          className='btn-signout'
           onClick={handleSignout}
-          type='button'
         >
           {t('signout.certain')}
         </Button>

@@ -1,7 +1,16 @@
 import { HandlerProps } from 'react-reflex';
-import { SuperBlocks } from '../../../config/certification-settings';
-import { Themes } from '../components/settings/theme';
-import { certMap } from '../resources/cert-and-project-map';
+import type {
+  ChallengeLang,
+  SuperBlocks
+} from '../../../shared-dist/config/curriculum';
+import type { CertificationFlags } from '../../../shared-dist/config/certification-settings';
+import type { Chapter } from '../../../shared-dist/config/chapters';
+import { BlockLayouts, BlockLabel } from '../../../shared-dist/config/blocks';
+import type { ChallengeFile, Ext } from '../../../shared-dist/utils/polyvinyl';
+import { type CertTitle } from '../../config/cert-and-project-map';
+import { UserThemes } from './types';
+
+export type { ChallengeFile, Ext };
 
 export type Steps = {
   isHonest?: boolean;
@@ -18,41 +27,39 @@ export type CurrentCert = {
 };
 
 export type MarkdownRemark = {
-  fields: [{ component: string; nodeIdentity: string; slug: string }];
-  fileAbsolutePath: string;
   frontmatter: {
     block: string;
-    isBeta: boolean;
     superBlock: SuperBlocks;
     // TODO: make enum like superBlock
     certification: string;
-    title: (typeof certMap)[number]['title'];
+    title: CertTitle;
   };
-  headings: [
-    {
-      depth: number;
-      value: string;
-      id: string;
-    }
-  ];
   html: string;
-  htmlAst: Record<string, unknown>;
   id: string;
-  rawMarkdownBody: string;
-  timeToRead: number;
-  wordCount: {
-    paragraphs: number;
-    sentences: number;
-    words: number;
-  };
 };
 
-type Question = {
+type MultipleChoiceAnswer = {
+  answer: string;
+  feedback: string | null;
+  audioId: string | null;
+};
+
+export type Question = {
   text: string;
-  answers: string[];
+  answers: MultipleChoiceAnswer[];
   solution: number;
 };
-type Fields = { slug: string; blockName: string; tests: Test[] };
+
+export type FillInTheBlank = {
+  sentence: string;
+  blanks: MultipleChoiceAnswer[];
+  inputType?: 'pinyin-tone' | 'pinyin-to-hanzi';
+};
+
+export type Fields = {
+  slug: string;
+  blockHashSlug: string;
+};
 type Required = {
   link: string;
   raw: boolean;
@@ -71,38 +78,156 @@ export interface VideoLocaleIds {
   portuguese?: string;
 }
 
-export type ChallengeWithCompletedNode = {
-  block: string;
-  challengeType: number;
-  dashedName: string;
-  fields: {
-    slug: string;
-  };
+// English types for animations
+export interface Dialogue {
+  text: string;
+  align: 'left' | 'right' | 'center';
+}
+
+export interface CharacterPosition {
+  x?: number;
+  y?: number;
+  z?: number;
+}
+
+export interface SceneCommand {
+  background?: string;
+  character: string;
+  position?: CharacterPosition;
+  opacity?: number;
+  startTime: number;
+  finishTime?: number;
+  dialogue?: Dialogue;
+}
+
+export type Characters =
+  // English
+  | 'Alice'
+  | 'Amy'
+  | 'Anna'
+  | 'Bob'
+  | 'Brian'
+  | 'Candidate'
+  | 'David'
+  | 'Delivery Man'
+  | 'Expert'
+  | 'Jake'
+  | 'James'
+  | 'Jessica'
+  | 'Jim'
+  | 'Josh'
+  | 'Linda'
+  | 'Lisa'
+  | 'Maria'
+  | 'Mark'
+  | 'Riker'
+  | 'Sarah'
+  | 'Second Candidate'
+  | 'Sophie'
+  | 'Tom'
+
+  // Spanish
+  | 'Alex'
+  | 'Ángela'
+  | 'Camila'
+  | 'Carlos'
+  | 'Elena'
+  | 'Esteban'
+  | 'Joaquín'
+  | 'Julieta'
+  | 'Luis'
+  | 'Luna'
+  | 'Marisol'
+  | 'Mateo'
+  | 'Noelia'
+  | 'René'
+  | 'Sebastián'
+  | 'Diego'
+  | 'Valeria'
+
+  // Chinese
+  | 'Chen Na'
+  | 'Li Hong'
+  | 'Li Ping'
+  | 'Lin Yating'
+  | 'Liu Ming'
+  | 'Wang Hua'
+  | 'Zhang Wei'
+  | 'Zhou Yongjie';
+
+interface SetupCharacter {
+  character: Characters;
+  position: CharacterPosition;
+  opacity: number;
+  isTalking?: boolean;
+}
+
+interface SetupAudio {
+  filename: string;
+  startTime: number;
+  startTimestamp: number | null;
+  finishTimestamp: number | null;
+}
+
+interface SceneSetup {
+  background: string;
+  characters: SetupCharacter[];
+  audio: SetupAudio;
+  alwaysShowDialogue?: boolean;
+}
+
+export interface FullScene {
+  setup: SceneSetup;
+  commands: SceneCommand[];
+}
+
+export interface PrerequisiteChallenge {
   id: string;
-  isCompleted: boolean;
-  order: number;
-  superBlock: SuperBlocks;
   title: string;
+  slug?: string;
+}
+
+type Nodule = ParagraphNodule | InteractiveEditorNodule;
+
+type ParagraphNodule = {
+  type: 'paragraph';
+  data: string;
+};
+
+type InteractiveEditorNodule = {
+  type: 'interactiveEditor';
+  data: {
+    ext: Ext;
+    name: string;
+    contents: string;
+    contentsHtml: string;
+  }[];
 };
 
 export type ChallengeNode = {
   challenge: {
     block: string;
+    blockLabel: BlockLabel;
+    blockLayout: BlockLayouts;
     certification: string;
     challengeOrder: number;
     challengeType: number;
     dashedName: string;
+    demoType: 'onClick' | 'onLoad' | null;
     description: string;
     challengeFiles: ChallengeFiles;
+    nodules: Nodule[];
+    explanation: string;
     fields: Fields;
+    fillInTheBlank: FillInTheBlank;
     forumTopicId: number;
-    guideUrl: string;
     head: string[];
     hasEditableBoundaries: boolean;
     helpCategory: string;
+    hooks?: Hooks;
     id: string;
+    lang?: ChallengeLang;
     instructions: string;
-    isComingSoon: boolean;
     internal?: {
       content: string;
       contentDigest: string;
@@ -113,16 +238,19 @@ export type ChallengeNode = {
       owner: string;
       type: string;
     };
+    msTrophyId: string;
     notes: string;
-    removeComments: boolean;
+    prerequisites: PrerequisiteChallenge[];
     isLocked: boolean;
-    isPrivate: boolean;
     order: number;
-    question: Question;
+    questions: Question[];
+    quizzes: Quiz[];
     assignments: string[];
     required: Required[];
+    saveSubmissionToDB?: boolean;
+    scene: FullScene;
     solutions: {
-      [T in FileKey]: FileKeyChallenge;
+      [T: string]: FileKeyChallenge;
     };
     sourceInstanceName: string;
     superOrder: number;
@@ -130,8 +258,8 @@ export type ChallengeNode = {
     tail: string[];
     template: string;
     tests: Test[];
-    time: string;
     title: string;
+    transcript: string;
     translationPending: boolean;
     url: string;
     usesMultifileEditor: boolean;
@@ -139,7 +267,90 @@ export type ChallengeNode = {
     videoLocaleIds?: VideoLocaleIds;
     bilibiliIds?: BilibiliIds;
     videoUrl: string;
+    chapter?: string;
+    module?: string;
   };
+};
+
+export interface Hooks {
+  beforeAll?: string;
+  beforeEach?: string;
+  afterEach?: string;
+  afterAll?: string;
+}
+
+export type PageContext = {
+  challengeMeta: ChallengeMeta;
+  projectPreview: {
+    challengeData: ChallengeData;
+  };
+};
+
+export type DailyCodingChallengeNode = {
+  challenge: {
+    date: string;
+    id: string;
+    challengeNumber: number;
+    title: string;
+    description: string;
+    superBlock: 'daily-coding-challenge';
+    block: 'daily-coding-challenge';
+    usesMultifileEditor: true;
+
+    helpCategory: 'JavaScript' | 'Python';
+    challengeType: 28 | 29;
+    tests: Test[];
+    challengeFiles: ChallengeFiles;
+
+    // props to satisfy the show classic component
+    instructions: string;
+    demoType: null;
+    hooks?: { beforeAll: string };
+    hasEditableBoundaries?: false;
+    forumTopicId?: number;
+    notes: string;
+    videoUrl?: string;
+    translationPending: false;
+    saveSubmissionToDB?: boolean;
+  };
+};
+
+export type DailyCodingChallengePageContext = {
+  challengeMeta: {
+    block: 'daily-coding-challenge';
+    id: string;
+    superBlock: 'daily-coding-challenge';
+    disableLoopProtectTests: boolean;
+
+    // props to satisfy the show classic component
+    isFirstStep: boolean;
+    nextChallengePath?: string;
+    prevChallengePath?: string;
+    disableLoopProtectPreview: boolean;
+  };
+
+  // props to satisfy the show classic component
+  projectPreview: {
+    challengeData?: null;
+  };
+};
+
+export type DailyCodingChallengeLanguages = 'javascript' | 'python';
+
+export interface CompletedDailyCodingChallenge {
+  id: string;
+  completedDate: number;
+  languages: DailyCodingChallengeLanguages[];
+}
+
+type Quiz = {
+  questions: QuizQuestion[];
+};
+
+type QuizQuestion = {
+  text: string;
+  distractors: string[];
+  answer: string;
 };
 
 export type CertificateNode = {
@@ -151,9 +362,23 @@ export type CertificateNode = {
 };
 
 export type AllChallengesInfo = {
-  challengeEdges: { node: ChallengeNode }[];
+  challengeNodes: ChallengeNode[];
   certificateNodes: CertificateNode[];
 };
+
+export type ChapterBasedSuperBlockStructure = {
+  superBlock: SuperBlocks;
+  chapters: Chapter[];
+};
+
+export type BlockBasedSuperBlockStructure = {
+  superBlock: SuperBlocks;
+  blocks: string[];
+};
+
+export type SuperBlockStructure =
+  | ChapterBasedSuperBlockStructure
+  | BlockBasedSuperBlockStructure;
 
 export type AllChallengeNode = {
   edges: [
@@ -176,6 +401,7 @@ export type Dimensions = {
 export type Test = {
   pass?: boolean;
   err?: string;
+  message?: string;
 } & (ChallengeTest | CertTest);
 
 export type ChallengeTest = {
@@ -193,10 +419,13 @@ export type User = {
   about: string;
   acceptedPrivacyTerms: boolean;
   completedChallenges: CompletedChallenge[];
+  completedChallengeCount: number;
+  completedSurveys: SurveyResults[];
   currentChallengeId: string;
   email: string;
   emailVerified: boolean;
   githubProfile: string;
+  isEmailVerified: boolean;
   isBanned: boolean;
   isCheater: boolean;
   isDonating: boolean;
@@ -211,16 +440,16 @@ export type User = {
   profileUI: ProfileUI;
   progressTimestamps: Array<unknown>;
   savedChallenges: SavedChallenges;
-  sendQuincyEmail: boolean;
+  sendQuincyEmail: boolean | null;
   sound: boolean;
-  theme: Themes;
+  theme: UserThemes;
   keyboardShortcuts: boolean;
   twitter: string;
+  bluesky: string;
   username: string;
   website: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  yearsTopContributor: any[];
-} & ClaimedCertifications;
+  yearsTopContributor: string[];
+} & CertificationFlags;
 
 export type ProfileUI = {
   isLocked: boolean;
@@ -235,27 +464,6 @@ export type ProfileUI = {
   showTimeLine: boolean;
 };
 
-type ClaimedCertifications = {
-  is2018DataVisCert: boolean;
-  isApisMicroservicesCert: boolean;
-  isBackEndCert: boolean;
-  isDataVisCert: boolean;
-  isEmailVerified: boolean;
-  isCollegeAlgebraPyCertV8: boolean;
-  isFrontEndCert: boolean;
-  isFrontEndLibsCert: boolean;
-  isFullStackCert: boolean;
-  isInfosecQaCert: boolean;
-  isQaCertV7: boolean;
-  isInfosecCertV7: boolean;
-  isJsAlgoDataStructCert: boolean;
-  isRelationalDatabaseCertV8: boolean;
-  isRespWebDesignCert: boolean;
-  isSciCompPyCertV7: boolean;
-  isDataAnalysisPyCertV7: boolean;
-  isMachineLearningPyCertV7: boolean;
-};
-
 type SavedChallenges = SavedChallenge[];
 
 export type SavedChallenge = {
@@ -263,17 +471,20 @@ export type SavedChallenge = {
   challengeFiles: SavedChallengeFiles;
 };
 
+// TODO: remove unused properties and stop returning them from api? (e.g.
+// history, ext, name)
 export type SavedChallengeFile = {
   fileKey: string;
   ext: Ext;
   name: string;
   history?: string[];
+  editableRegionBoundaries?: number[];
   contents: string;
 };
 
 export type SavedChallengeFiles = SavedChallengeFile[];
 
-export type CompletedChallenge = {
+export interface CompletedChallenge {
   id: string;
   solution?: string | null;
   githubLink?: string;
@@ -282,23 +493,29 @@ export type CompletedChallenge = {
   challengeFiles:
     | Pick<ChallengeFile, 'contents' | 'ext' | 'fileKey' | 'name'>[]
     | null;
-};
+  examResults?: GeneratedExamResults;
+}
 
-export type Ext = 'js' | 'html' | 'css' | 'jsx';
-export type FileKey = 'scriptjs' | 'indexhtml' | 'stylescss' | 'indexjsx';
+export interface ChallengeData extends CompletedChallenge {
+  challengeFiles: ChallengeFile[] | null;
+}
 
 export type ChallengeMeta = {
   block: string;
   id: string;
-  introPath: string;
   isFirstStep: boolean;
-  nextChallengePath: string;
-  prevChallengePath: string;
-  removeComments: boolean;
-  superBlock: SuperBlocks;
+  superBlock: SuperBlocks | 'daily-coding-challenge';
   title?: string;
   challengeType?: number;
   helpCategory: string;
+  disableLoopProtectTests: boolean;
+  disableLoopProtectPreview: boolean;
+  saveSubmissionToDB?: boolean;
+} & NavigationPaths;
+
+export type NavigationPaths = {
+  nextChallengePath?: string;
+  prevChallengePath?: string;
 };
 
 export type PortfolioProjectData = {
@@ -309,29 +526,14 @@ export type PortfolioProjectData = {
   description: string;
 };
 
-type FileKeyChallenge = {
+export type FileKeyChallenge = {
   contents: string;
   ext: Ext;
   head: string;
   id: string;
-  key: FileKey;
+  key: string;
   name: string;
   tail: string;
-};
-
-export type ChallengeFile = {
-  fileKey: string;
-  ext: Ext;
-  name: string;
-  editableRegionBoundaries?: number[];
-  usesMultifileEditor?: boolean;
-  error: null | string | unknown;
-  head: string;
-  tail: string;
-  seed: string;
-  contents: string;
-  id: string;
-  history: string[];
 };
 
 export type ChallengeFiles = ChallengeFile[] | null;
@@ -341,4 +543,68 @@ export interface UserFetchState {
   complete: boolean;
   errored: boolean;
   error: string | null;
+}
+
+// Exam Related Types:
+interface GeneratedExamAnswer {
+  id: string;
+  answer: string;
+}
+
+// Generated Exam (from API)
+export interface GeneratedExamQuestion {
+  id: string;
+  question: string;
+  answers: GeneratedExamAnswer[];
+}
+
+interface GenerateExamResponse {
+  error?: string;
+  generatedExam?: GeneratedExamQuestion[];
+}
+
+export interface GenerateExamResponseWithData {
+  response: Response;
+  data: GenerateExamResponse;
+}
+
+export interface ExamTokenResponse {
+  examEnvironmentAuthorizationToken: string;
+}
+// User Exam (null until they answer the question)
+interface UserExamAnswer {
+  id: string | null;
+  answer: string | null;
+}
+
+export interface UserExamQuestion {
+  id: string;
+  question: string;
+  answer: UserExamAnswer;
+}
+
+export interface UserExam {
+  examTimeInSeconds: number;
+  userExamQuestions: UserExamQuestion[];
+}
+
+// Exam Results (from API)
+export interface GeneratedExamResults {
+  numberOfCorrectAnswers: number;
+  numberOfQuestionsInExam: number;
+  percentCorrect: number;
+  passingPercent: number;
+  passed: boolean;
+  examTimeInSeconds: number;
+}
+
+// Survey related types
+export interface SurveyResponse {
+  question: string;
+  response: string;
+}
+
+export interface SurveyResults {
+  title: string;
+  responses: SurveyResponse[];
 }

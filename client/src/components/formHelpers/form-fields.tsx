@@ -1,30 +1,31 @@
 import {
-  Alert,
-  ControlLabel,
   FormControl,
   FormGroup,
+  ControlLabel,
+  Alert,
   HelpBlock
-} from '@freecodecamp/react-bootstrap';
-import { kebabCase } from 'lodash-es';
+} from '@freecodecamp/ui';
 import normalizeUrl from 'normalize-url';
 import React from 'react';
 import { Field } from 'react-final-form';
-import { useTranslation } from 'react-i18next';
 import {
   editorValidator,
   localhostValidator,
   composeValidators,
   fCCValidator,
   httpValidator,
-  pathValidator
+  pathValidator,
+  sourceCodeLinkExistsValidator,
+  sourceCodeLinkPublicValidator
 } from './form-validators';
 
 export type FormOptions = {
   ignored?: string[];
   isEditorLinkAllowed?: boolean;
   isLocalLinkAllowed?: boolean;
+  isSourceCodeLinkRequired?: boolean;
   required?: string[];
-  types?: { [key: string]: string };
+  types?: { [key: string]: React.HTMLInputTypeAttribute };
   placeholders?: { [key: string]: string };
 };
 
@@ -33,24 +34,24 @@ type FormFieldsProps = {
   options: FormOptions;
 };
 
-function FormFields(props: FormFieldsProps): JSX.Element {
-  const { t } = useTranslation();
-  const { formFields, options = {} }: FormFieldsProps = props;
+function FormFields({ formFields, options }: FormFieldsProps): JSX.Element {
   const {
     ignored = [],
     placeholders = {},
     required = [],
     types = {},
     isEditorLinkAllowed = false,
-    isLocalLinkAllowed = false
+    isLocalLinkAllowed = false,
+    isSourceCodeLinkRequired = false
   } = options;
 
   const nullOrWarning = (
-    value: string,
+    value: string | undefined,
     error: unknown,
     isURL: boolean,
     name: string
   ) => {
+    if (!value) return null;
     let validationError: string | undefined;
     if (value && isURL) {
       try {
@@ -68,6 +69,12 @@ function FormFields(props: FormFieldsProps): JSX.Element {
         validators.push(pathValidator);
       }
     }
+    if (name === 'githubLink') {
+      if (isSourceCodeLinkRequired) {
+        validators.push(sourceCodeLinkExistsValidator);
+      }
+      validators.push(sourceCodeLinkPublicValidator);
+    }
     if (!isLocalLinkAllowed) {
       validators.push(localhostValidator);
     }
@@ -76,11 +83,8 @@ function FormFields(props: FormFieldsProps): JSX.Element {
       validationError ||
       validationWarning) as string;
     return message ? (
-      <HelpBlock>
-        <Alert
-          bsStyle={error || validationError ? 'danger' : 'info'}
-          closeLabel={t('buttons.close')}
-        >
+      <HelpBlock id={`${name}-message`}>
+        <Alert variant={error || validationError ? 'danger' : 'info'}>
           {message}
         </Alert>
       </HelpBlock>
@@ -91,29 +95,30 @@ function FormFields(props: FormFieldsProps): JSX.Element {
       {formFields
         .filter(formField => !ignored.includes(formField.name))
         .map(({ name, label }) => (
-          // TODO: verify if the value is always a string
-          <Field key={`${kebabCase(name)}-field`} name={name}>
+          <Field<string | undefined> key={`${name}-field`} name={name}>
             {({ input: { value, onChange }, meta: { pristine, error } }) => {
-              const key = kebabCase(name);
-              const type = name in types ? types[name] : 'text';
               const placeholder =
                 name in placeholders ? placeholders[name] : '';
               const isURL = types[name] === 'url';
               return (
-                <FormGroup key={key}>
-                  {type === 'hidden' ? null : (
-                    <ControlLabel htmlFor={key}>{label}</ControlLabel>
-                  )}
+                <FormGroup key={name}>
+                  <ControlLabel
+                    htmlFor={name}
+                    data-playwright-test-label={`${name}-control-label`}
+                  >
+                    {label}
+                  </ControlLabel>
                   <FormControl
-                    componentClass={type === 'textarea' ? type : 'input'}
-                    id={key}
+                    id={name}
                     name={name}
                     onChange={onChange}
                     placeholder={placeholder}
                     required={required.includes(name)}
                     rows={4}
-                    type={type}
+                    type={types[name] || 'text'}
                     value={value as string}
+                    aria-describedby={`${name}-message`}
+                    data-playwright-test-label={`${name}-form-control`}
                   />
                   {nullOrWarning(
                     value as string,
